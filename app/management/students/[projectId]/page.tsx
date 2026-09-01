@@ -54,7 +54,7 @@ export default async function ManagementProjectDetailPage({
       {reasons.length > 0 && (
         <Card className={project.riskLevel === "CRITICAL" ? "glow-critical" : "glow-warn"}>
           <CardContent className="flex flex-col gap-2 py-4">
-            <p className="text-sm font-semibold text-warn-300">Risk factors</p>
+            <p className="text-sm font-semibold text-warn-700">Risk factors</p>
             <ul className="flex flex-col gap-1 text-sm text-muted-foreground">
               {reasons.map((r) => (
                 <li key={r} className="flex items-start gap-2">

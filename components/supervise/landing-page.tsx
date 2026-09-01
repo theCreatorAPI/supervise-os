@@ -2,17 +2,17 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Radar, ArrowRight, Sparkles, Radio, Gauge, Bell, GitBranch, Quote } from "lucide-react";
+import { Radar, ArrowRight, Radio, Gauge, Bell, GitBranch, Quote } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CountUp } from "@/components/ui/count-up";
 import { ScrollReveal } from "@/components/supervise/scroll-reveal";
 import { MobileNavDrawer } from "@/components/supervise/mobile-nav-drawer";
-import { HeroIllustration } from "@/components/supervise/illustrations/hero-illustration";
-import { WorkflowIllustration } from "@/components/supervise/illustrations/workflow-illustration";
-import { AnalyticsIllustration } from "@/components/supervise/illustrations/analytics-illustration";
-import { MentorshipIllustration } from "@/components/supervise/illustrations/mentorship-illustration";
-import { CompletionIllustration } from "@/components/supervise/illustrations/completion-illustration";
+import { DashboardMockup } from "@/components/supervise/mockups/dashboard-mockup";
+import { ReviewMockup } from "@/components/supervise/mockups/review-mockup";
+import { WorkloadMockup } from "@/components/supervise/mockups/workload-mockup";
+import { AtRiskMockup } from "@/components/supervise/mockups/at-risk-mockup";
 import { Footer } from "@/components/supervise/footer";
+import { CheckCircle2 } from "lucide-react";
 
 const NAV_LINKS = [
   { label: "Features", href: "#features" },
@@ -115,20 +115,20 @@ export function LandingPage({
       </header>
 
       {/* Section 1 — Hero */}
-      <section className="mx-auto grid max-w-6xl items-center gap-10 px-6 pb-20 pt-16 md:grid-cols-2 md:pt-24">
-        <div>
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
+      <section className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-12 px-6 pb-24 pt-16 md:grid-cols-2 md:gap-8 md:pt-28">
+        <div className="min-w-0 md:pr-6">
+          <motion.p
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mb-6 inline-flex items-center gap-1.5 rounded-full border border-border-strong bg-background-elevated px-3.5 py-1.5 text-xs text-brand-700"
+            className="mb-5 text-xs font-semibold uppercase tracking-[0.18em] text-brand-600"
           >
-            <Sparkles className="size-3.5" /> Now piloting in Computer Science
-          </motion.div>
+            Academic project supervision
+          </motion.p>
           <motion.h1
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.05 }}
-            className="font-display text-5xl font-bold leading-[1.05] tracking-tight md:text-6xl"
+            className="font-display text-6xl font-bold leading-[0.98] tracking-tight md:text-7xl"
           >
             Project supervision,
             <br />
@@ -164,48 +164,55 @@ export function LandingPage({
           initial={{ opacity: 0, scale: 0.92 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.15, duration: 0.6 }}
-          className="glass rounded-3xl p-6"
+          className="relative min-w-0 md:translate-y-6"
         >
-          <HeroIllustration />
+          <div
+            aria-hidden
+            className="absolute -inset-6 -z-10 hidden rounded-[2rem] bg-gradient-to-br from-brand-100 via-brand-50 to-white opacity-70 blur-2xl md:block"
+          />
+          <DashboardMockup />
         </motion.div>
       </section>
 
-      {/* Stats strip */}
-      <section className="mx-auto max-w-5xl px-6 pb-20">
-        <div className="grid gap-4 sm:grid-cols-3">
-          {STATS.map((s, i) => (
-            <ScrollReveal key={s.label} direction="up" delay={i * 0.08}>
-              <div className="glass rounded-2xl p-6 text-center">
-                <p className="font-display text-4xl font-bold text-foreground">
+      {/* Stats ledger */}
+      <section className="mx-auto max-w-5xl px-6 pb-24">
+        <ScrollReveal direction="up">
+          <div className="flex flex-col divide-y divide-border border-y border-border sm:flex-row sm:divide-x sm:divide-y-0">
+            {STATS.map((s) => (
+              <div key={s.label} className="flex-1 py-6 text-center first:pt-0 last:pb-0 sm:px-8 sm:py-2 sm:text-left first:sm:pl-0 last:sm:pr-0">
+                <p className="font-display text-4xl font-bold text-foreground sm:text-5xl">
                   <CountUp value={s.value} />
                   {s.suffix}
                 </p>
                 <p className="mt-1.5 text-sm text-muted-foreground">{s.label}</p>
               </div>
-            </ScrollReveal>
-          ))}
-        </div>
+            ))}
+          </div>
+        </ScrollReveal>
       </section>
 
       {/* Section 2 — Features */}
-      <section id="features" className="mx-auto max-w-6xl scroll-mt-20 px-6 pb-24">
+      <section id="features" className="mx-auto max-w-5xl scroll-mt-20 px-6 pb-24">
         <ScrollReveal direction="up">
-          <div className="mb-10 text-center">
-            <h2 className="font-display text-3xl font-bold md:text-4xl">Everything supervision needs, live</h2>
-            <p className="mx-auto mt-3 max-w-lg text-muted-foreground">
+          <div className="mb-14 max-w-lg">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-600">What&apos;s inside</p>
+            <h2 className="mt-3 font-display text-3xl font-bold md:text-4xl">Everything supervision needs, live</h2>
+            <p className="mt-3 text-muted-foreground">
               Four systems working together so nothing falls through the cracks between proposal and defense.
             </p>
           </div>
         </ScrollReveal>
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="border-t border-border">
           {FEATURES.map((f, i) => (
-            <ScrollReveal key={f.title} direction={i % 2 === 0 ? "left" : "right"} delay={i * 0.06}>
-              <div className="glass group h-full rounded-2xl p-7 transition-transform hover:-translate-y-1">
-                <div className="mb-4 flex size-11 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
-                  <f.icon className="size-5" />
+            <ScrollReveal key={f.title} direction="up" delay={i * 0.05}>
+              <div className="group grid grid-cols-1 gap-4 border-b border-border py-8 md:grid-cols-[minmax(0,220px)_minmax(0,1fr)] md:items-start md:gap-10">
+                <div className="flex items-center gap-3">
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-700 transition-colors group-hover:bg-brand-500 group-hover:text-white">
+                    <f.icon className="size-4.5" />
+                  </span>
+                  <h3 className="font-display text-lg font-semibold">{f.title}</h3>
                 </div>
-                <h3 className="font-display text-lg font-semibold">{f.title}</h3>
-                <p className="mt-2 text-sm text-muted-foreground">{f.body}</p>
+                <p className="text-sm text-muted-foreground md:max-w-lg md:text-base">{f.body}</p>
               </div>
             </ScrollReveal>
           ))}
@@ -217,41 +224,46 @@ export function LandingPage({
         <div className="mx-auto max-w-5xl px-6">
           <ScrollReveal direction="up">
             <div className="mb-12 text-center">
-              <h2 className="font-display text-3xl font-bold md:text-4xl">How it works</h2>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-600">The cycle</p>
+              <h2 className="mt-3 font-display text-3xl font-bold md:text-4xl">How it works</h2>
               <p className="mx-auto mt-3 max-w-lg text-muted-foreground">
                 Three steps, repeated for every milestone, from topic approval to defense.
               </p>
             </div>
           </ScrollReveal>
           <ScrollReveal direction="up" delay={0.1}>
-            <div className="mx-auto mb-10 max-w-2xl">
-              <WorkflowIllustration />
+            <div className="mx-auto mb-16 max-w-md">
+              <ReviewMockup />
             </div>
           </ScrollReveal>
-          <div className="grid gap-6 md:grid-cols-3">
-            {STEPS.map((s, i) => (
-              <ScrollReveal key={s.title} direction={i % 2 === 0 ? "left" : "right"} delay={i * 0.08}>
-                <div className="text-center md:text-left">
-                  <span className="font-display text-sm font-bold text-brand-600">0{i + 1}</span>
-                  <h3 className="mt-1 font-display text-xl font-semibold">{s.title}</h3>
-                  <p className="mt-2 text-sm text-muted-foreground">{s.body}</p>
+          <ScrollReveal direction="up" delay={0.05}>
+            <div className="relative flex flex-col gap-10 md:flex-row md:items-start md:justify-between md:gap-6">
+              <div aria-hidden className="absolute left-0 right-0 top-5 hidden h-px bg-border-strong md:block" />
+              {STEPS.map((s, i) => (
+                <div key={s.title} className="relative flex gap-4 md:min-w-0 md:flex-1 md:flex-col md:items-start">
+                  <span className="relative z-10 flex size-10 shrink-0 items-center justify-center rounded-full border-2 border-brand-500 bg-background-elevated font-display text-sm font-bold text-brand-600 md:mb-5">
+                    {i + 1}
+                  </span>
+                  <div className="min-w-0">
+                    <h3 className="font-display text-xl font-semibold">{s.title}</h3>
+                    <p className="mt-2 text-sm text-muted-foreground md:max-w-[220px]">{s.body}</p>
+                  </div>
                 </div>
-              </ScrollReveal>
-            ))}
-          </div>
+              ))}
+            </div>
+          </ScrollReveal>
         </div>
       </section>
 
       {/* Section 4 — Analytics */}
       <section id="analytics" className="mx-auto max-w-6xl scroll-mt-20 px-6 py-24">
-        <div className="grid items-center gap-10 md:grid-cols-2">
+        <div className="grid grid-cols-1 items-center gap-10 md:grid-cols-2">
           <ScrollReveal direction="left">
-            <div className="glass rounded-3xl p-6">
-              <AnalyticsIllustration />
-            </div>
+            <WorkloadMockup />
           </ScrollReveal>
           <ScrollReveal direction="right">
-            <h2 className="font-display text-3xl font-bold md:text-4xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-600">The full picture</p>
+            <h2 className="mt-3 font-display text-3xl font-bold md:text-4xl">
               Workload you can actually <span className="text-gradient">see</span>
             </h2>
             <p className="mt-4 text-muted-foreground">
@@ -259,14 +271,11 @@ export function LandingPage({
               at-risk percentages — all computed from real submission and review data, not a
               spreadsheet someone forgot to update.
             </p>
-            <div className="mt-6 flex items-center gap-4 rounded-2xl border border-border-strong bg-white p-4">
-              <div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-700">
-                <Gauge className="size-5" />
-              </div>
-              <div>
-                <p className="font-display text-lg font-semibold">Dr. Amara&apos;s workload</p>
-                <p className="text-sm text-muted-foreground">18 of 25 capacity · 3 at risk</p>
-              </div>
+            <div className="mt-6 flex items-center gap-2.5 border-t border-border pt-5">
+              <span className="size-2 shrink-0 rounded-full bg-brand-500" />
+              <p className="text-sm text-muted-foreground">
+                <span className="font-semibold text-foreground">Dr. Amara&apos;s workload</span> — 18 of 25 capacity · 3 at risk
+              </p>
             </div>
             <Button size="lg" className="mt-6" asChild>
               <Link href={dashboardHref ?? "/sign-up"}>
@@ -279,11 +288,9 @@ export function LandingPage({
 
       {/* Section 5 — Testimonial */}
       <section id="testimonials" className="scroll-mt-20 bg-background-elevated py-24">
-        <div className="mx-auto grid max-w-5xl items-center gap-10 px-6 md:grid-cols-2">
+        <div className="mx-auto grid max-w-5xl grid-cols-1 items-center gap-10 px-6 md:grid-cols-2">
           <ScrollReveal direction="left">
-            <div className="glass rounded-3xl p-8">
-              <MentorshipIllustration />
-            </div>
+            <AtRiskMockup />
           </ScrollReveal>
           <ScrollReveal direction="right">
             <Quote className="size-8 text-brand-300" />
@@ -302,8 +309,8 @@ export function LandingPage({
         <ScrollReveal direction="up">
           <div className="glass-strong flex flex-col items-center gap-8 rounded-3xl p-10 text-center md:flex-row md:justify-between md:text-left">
             <div className="flex items-center gap-6">
-              <div className="hidden size-28 shrink-0 md:block">
-                <CompletionIllustration />
+              <div className="hidden size-20 shrink-0 items-center justify-center rounded-full bg-success-500/10 text-success-600 md:flex">
+                <CheckCircle2 className="size-10" />
               </div>
               <div>
                 <h2 className="font-display text-2xl font-bold md:text-3xl">Ready to see every project, clearly?</h2>

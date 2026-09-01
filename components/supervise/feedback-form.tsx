@@ -13,8 +13,8 @@ import { giveFeedback, type FeedbackState } from "@/app/actions/feedback";
 const initialState: FeedbackState = {};
 
 const DECISIONS = [
-  { value: "APPROVED", label: "Approve", icon: Check, activeClass: "border-success-500/60 bg-success-500/10 text-success-300" },
-  { value: "RETURNED", label: "Return", icon: RotateCcw, activeClass: "border-critical-500/60 bg-critical-500/10 text-critical-300" },
+  { value: "APPROVED", label: "Approve", icon: Check, activeClass: "border-success-500/60 bg-success-500/10 text-success-700" },
+  { value: "RETURNED", label: "Return", icon: RotateCcw, activeClass: "border-critical-500/60 bg-critical-500/10 text-critical-700" },
   { value: "COMMENT_ONLY", label: "Comment only", icon: MessageSquare, activeClass: "border-brand-600/60 bg-brand-600/10 text-brand-700" },
 ] as const;
 

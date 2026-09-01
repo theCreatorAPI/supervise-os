@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { cn } from "@/lib/utils";
 
 const OFFSETS: Record<string, { x?: number; y?: number }> = {
   left: { x: -40 },
@@ -26,7 +27,7 @@ export function ScrollReveal({
       whileInView={{ opacity: 1, x: 0, y: 0 }}
       viewport={{ once: true, amount: 0.3 }}
       transition={{ duration: 0.6, delay, ease: [0.16, 1, 0.3, 1] }}
-      className={className}
+      className={cn("min-w-0", className)}
     >
       {children}
     </motion.div>
