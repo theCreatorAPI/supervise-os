@@ -1,0 +1,212 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  STUDENT
+  LECTURER
+  MANAGEMENT
+}
+
+enum UserStatus {
+  ACTIVE
+  PENDING_ACTIVATION
+}
+
+enum MilestoneStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  SUBMITTED
+  UNDER_REVIEW
+  RETURNED
+  APPROVED
+}
+
+enum RiskLevel {
+  NORMAL
+  AT_RISK
+  CRITICAL
+}
+
+enum RiskIndicatorType {
+  STALE_SUBMISSION
+  MILESTONE_OVERDUE
+  REPEATED_RETURNS
+  REVIEW_OVERDUE
+  MEETING_MISSED
+}
+
+enum RiskIndicatorStatus {
+  ACTIVE
+  RESOLVED
+}
+
+enum ProjectStatus {
+  ACTIVE
+  COMPLETED
+  DEFENDED
+}
+
+enum ReviewDecision {
+  APPROVED
+  RETURNED
+  COMMENT_ONLY
+}
+
+enum ProposalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Department {
+  id   String @id @default(cuid())
+  name String @unique
+
+  users    User[]
+  projects Project[]
+}
+
+model User {
+  id             String     @id @default(cuid())
+  name           String
+  email          String     @unique
+  passwordHash   String?
+  role           Role
+  status         UserStatus @default(ACTIVE)
+  departmentId   String?
+  department     Department? @relation(fields: [departmentId], references: [id])
+  title          String?
+  maxLoad        Int        @default(15)
+  matricNumber   String?    @unique
+  staffId        String?    @unique
+  activationToken String?   @unique
+  pendingSupervisorId String?
+  notificationsEnabled Boolean   @default(true)
+  meetingReminders     Boolean   @default(true)
+  createdAt      DateTime   @default(now())
+
+  projectsAsStudent  Project[]       @relation("StudentProjects")
+  projectsSupervised Project[]       @relation("SupervisorProjects")
+  reviewsGiven       Review[]
+  notifications      Notification[]
+  auditEvents        AuditEvent[]
+  topicProposals     TopicProposal[]
+}
+
+model Project {
+  id           String        @id @default(cuid())
+  title        String
+  description  String?
+  programme    String?
+  session      String?
+  studentId    String
+  student      User          @relation("StudentProjects", fields: [studentId], references: [id])
+  supervisorId String
+  supervisor   User          @relation("SupervisorProjects", fields: [supervisorId], references: [id])
+  departmentId String?
+  department   Department?   @relation(fields: [departmentId], references: [id])
+  status       ProjectStatus @default(ACTIVE)
+  riskLevel    RiskLevel     @default(NORMAL)
+  riskReasons  String        @default("[]")
+  createdAt    DateTime      @default(now())
+
+  milestones     Milestone[]
+  meetings       Meeting[]
+  riskIndicators RiskIndicator[]
+  auditEvents    AuditEvent[]
+}
+
+model Milestone {
+  id          String          @id @default(cuid())
+  projectId   String
+  project     Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name        String
+  order       Int
+  status      MilestoneStatus @default(NOT_STARTED)
+  dueDate     DateTime?
+  approvedAt  DateTime?
+  submissions Submission[]
+}
+
+model Submission {
+  id          String    @id @default(cuid())
+  milestoneId String
+  milestone   Milestone @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+  version     Int
+  fileUrl     String
+  fileName    String
+  fileSize    Int       @default(0)
+  submittedAt DateTime  @default(now())
+
+  reviews Review[]
+}
+
+model Review {
+  id           String         @id @default(cuid())
+  submissionId String
+  submission   Submission     @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  lecturerId   String
+  lecturer     User           @relation(fields: [lecturerId], references: [id])
+  comment      String
+  decision     ReviewDecision
+  createdAt    DateTime       @default(now())
+}
+
+model Meeting {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title       String   @default("Supervision meeting")
+  scheduledAt DateTime
+  notes       String?
+  completed   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
+
+model RiskIndicator {
+  id          String               @id @default(cuid())
+  projectId   String
+  project     Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  type        RiskIndicatorType
+  status      RiskIndicatorStatus  @default(ACTIVE)
+  detail      String
+  triggeredAt DateTime             @default(now())
+  resolvedAt  DateTime?
+}
+
+model AuditEvent {
+  id          String   @id @default(cuid())
+  actorId     String?
+  actor       User?    @relation(fields: [actorId], references: [id])
+  projectId   String?
+  project     Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  action      String
+  description String
+  createdAt   DateTime @default(now())
+}
+
+model TopicProposal {
+  id        String         @id @default(cuid())
+  studentId String
+  student   User           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  title     String
+  status    ProposalStatus @default(PENDING)
+  createdAt DateTime       @default(now())
+  decidedAt DateTime?
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  link      String?
+}

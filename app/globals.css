@@ -1,0 +1,260 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+:root {
+  --background: #ffffff;
+  --background-elevated: #f7f7f4;
+  --foreground: #292d32;
+  --muted-foreground: #475467;
+
+  --surface: #ffffff;
+  --border: #e7e5de;
+  --border-strong: #d9d4c4;
+
+  --brand-50: #f0f4e8;
+  --brand-100: #dfe9cb;
+  --brand-300: #a9bd82;
+  --brand-500: #4f5f31;
+  --brand-600: #3e4c26;
+  --brand-700: #2d3a1b;
+
+  --success-300: #86efac;
+  --success-500: #16a34a;
+  --success-600: #15803d;
+  --success-700: #166534;
+
+  --warn-300: #fdba74;
+  --warn-500: #d97706;
+  --warn-600: #b45309;
+  --warn-700: #92400e;
+
+  --critical-300: #fca5a5;
+  --critical-500: #dc2626;
+  --critical-600: #b91c1c;
+  --critical-700: #991b1b;
+
+  --radius: 0.75rem;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-background-elevated: var(--background-elevated);
+  --color-foreground: var(--foreground);
+  --color-muted-foreground: var(--muted-foreground);
+
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+
+  --color-brand-50: var(--brand-50);
+  --color-brand-100: var(--brand-100);
+  --color-brand-300: var(--brand-300);
+  --color-brand-500: var(--brand-500);
+  --color-brand-600: var(--brand-600);
+  --color-brand-700: var(--brand-700);
+  --color-brand: var(--brand-500);
+
+  --color-success-300: var(--success-300);
+  --color-success-500: var(--success-500);
+  --color-success-600: var(--success-600);
+  --color-success-700: var(--success-700);
+
+  --color-warn-300: var(--warn-300);
+  --color-warn-500: var(--warn-500);
+  --color-warn-600: var(--warn-600);
+  --color-warn-700: var(--warn-700);
+
+  --color-critical-300: var(--critical-300);
+  --color-critical-500: var(--critical-500);
+  --color-critical-600: var(--critical-600);
+  --color-critical-700: var(--critical-700);
+
+  --font-display: var(--font-display);
+  --font-body: var(--font-body);
+
+  --radius-xl: var(--radius);
+}
+
+* {
+  border-color: var(--border);
+}
+
+html {
+  color-scheme: light;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  position: relative;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.02em;
+}
+
+.font-display {
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+}
+
+.text-gradient {
+  background: linear-gradient(100deg, #292d32 0%, #4f5f31 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.glass {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 4px 14px -6px rgba(16, 24, 40, 0.08);
+}
+
+.glass-strong {
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  box-shadow: 0 2px 4px rgba(16, 24, 40, 0.04), 0 12px 32px -8px rgba(16, 24, 40, 0.14);
+}
+
+.glow-brand {
+  box-shadow: 0 0 0 1px rgba(79, 95, 49, 0.25), 0 4px 16px -4px rgba(79, 95, 49, 0.2);
+}
+
+.glow-warn {
+  box-shadow: 0 0 0 1px rgba(217, 119, 6, 0.25), 0 4px 16px -4px rgba(217, 119, 6, 0.2);
+}
+
+.glow-critical {
+  box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.3), 0 4px 16px -4px rgba(220, 38, 38, 0.25);
+}
+
+::selection {
+  background: rgba(79, 95, 49, 0.25);
+  color: #292d32;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(41, 45, 50, 0.14);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(41, 45, 50, 0.24);
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+.animate-pulse-glow {
+  animation: pulse-glow 2.4s ease-in-out infinite;
+}
+
+@keyframes float-slow {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-6px); }
+}
+.animate-float-slow {
+  animation: float-slow 5s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.animate-shimmer {
+  background-size: 200% 100%;
+  animation: shimmer 2.2s linear infinite;
+}
+
+/* Animated pill button — adapted from a Uiverse.io design (by gharsh11032000) to the brand palette. */
+.btn-morph {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  box-shadow: 0 0 0 2px var(--brand-500);
+  transition: box-shadow 0.5s cubic-bezier(0.23, 1, 0.32, 1), border-radius 0.5s cubic-bezier(0.23, 1, 0.32, 1),
+    color 0.4s ease;
+}
+.btn-morph::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 20px;
+  height: 20px;
+  background: var(--brand-500);
+  border-radius: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  transition: transform 0.7s cubic-bezier(0.23, 1, 0.32, 1);
+  z-index: -1;
+}
+.btn-morph:hover {
+  box-shadow: 0 0 0 8px transparent;
+  border-radius: 0.75rem;
+  color: white;
+}
+.btn-morph:hover::before {
+  transform: translate(-50%, -50%) scale(16);
+}
+.btn-morph:active {
+  transform: scale(0.96);
+}
+.btn-morph svg {
+  transition: transform 0.5s cubic-bezier(0.23, 1, 0.32, 1);
+}
+.btn-morph:hover svg {
+  transform: translateX(3px);
+}
+
+/* Custom checkbox — adapted from a Uiverse.io design (by bociKond) to the brand palette. */
+.checkbox-pulse {
+  --clr: var(--brand-600);
+  position: relative;
+  height: 1.35em;
+  width: 1.35em;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background-color: var(--border-strong);
+  transition: background-color 250ms, border-radius 250ms;
+}
+.checkbox-pulse[data-state="checked"] {
+  background-color: var(--clr);
+  border-radius: 0.4em;
+  animation: checkbox-pulse 500ms ease-in-out;
+}
+.checkbox-pulse-check {
+  color: white;
+}
+@keyframes checkbox-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--clr) 55%, transparent);
+    rotate: 20deg;
+  }
+  50% {
+    rotate: -20deg;
+  }
+  75% {
+    box-shadow: 0 0 0 10px color-mix(in srgb, var(--clr) 35%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 13px color-mix(in srgb, var(--clr) 0%, transparent);
+    rotate: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
