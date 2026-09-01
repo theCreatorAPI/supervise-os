@@ -217,6 +217,24 @@ priority order:
   problem the SQLite→Postgres swap (documented above) resolves; once the app runs on Postgres in
   CI/production, `fullyParallel: true` can be restored safely.
 
+**Two bugs surfaced by users of this phase's changes, fixed same-day:**
+
+- The CSP's `script-src` had no `'unsafe-eval'`, which broke `next dev` outright — React's
+  development-mode debugging/HMR relies on `eval()`, and the browser reported
+  `eval() is not supported ... Content-Security-Policy header`. `next.config.ts` now only adds
+  `'unsafe-eval'` (and `ws:` to `connect-src`, for the HMR websocket) when
+  `NODE_ENV !== "production"`; the production CSP is unchanged and stays free of `unsafe-eval`.
+- CI failed with `error TS2304: Cannot find name 'LayoutProps'` from the standalone
+  `npx tsc --noEmit` step. `LayoutProps` (and similar route-typing helpers) are ambient types
+  Next.js writes to `.next/types/` while `next build` runs — on a fresh checkout there's no
+  `.next` directory yet, so a `tsc` run *before* the build can't see them. `next build` already
+  performs a full type-check as part of building (visible as its own "Running TypeScript" step),
+  so the fix was to delete the now-redundant standalone type-check step from
+  `.github/workflows/ci.yml` rather than reorder around it. Reproduced locally by deleting both
+  `.next/` and the cached `tsconfig.tsbuildinfo` before running `tsc --noEmit` — the stale
+  `.tsbuildinfo` had been masking this locally, since incremental mode skipped the failing
+  re-check once `.next/types` existed from an earlier build.
+
 **Deliberately not done, and why:** a Dockerfile/`docker-compose.yml` (the natural target for a
 Next.js app like this is Vercel or a similar platform that doesn't need one — adding one
 speculatively for an unspecified host would be dead weight); structured error tracking/monitoring

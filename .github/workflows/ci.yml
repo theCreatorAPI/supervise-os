@@ -27,12 +27,13 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate
 
-      - name: Type-check
-        run: npx tsc --noEmit
-
       - name: Lint
         run: npm run lint
 
+      # `next build` generates .next/types (which defines ambient types like
+      # LayoutProps that app/layout.tsx depends on) and runs a full type-check
+      # as part of the build — a standalone `tsc --noEmit` run before this step
+      # would fail on a fresh checkout since those types don't exist yet.
       - name: Build
         run: npm run build
 
