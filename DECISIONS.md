@@ -156,3 +156,73 @@ stale one," which isn't worth the seed-script complexity for a demo.
 - Added a per-project activity log (`AuditLog` component) on the student and lecturer project
   views, sourced from `AuditEvent`. Management gets an aggregated 7-day activity count by action
   type instead of a raw per-project feed, per BR-010.
+
+---
+
+## Phase 3 — 2026-09-01: Production-readiness hardening
+
+A full audit against a "production grade" bar surfaced 8 concrete gaps; all were fixed, in
+priority order:
+
+- **Sign-in brute-force protection.** `auth.ts`'s `authorize()` now tracks
+  `User.failedLoginAttempts`/`lockedUntil` (new columns, migrated) and locks an account for 15
+  minutes after 5 consecutive failures, resetting on a successful login. A dummy `bcrypt.compare`
+  runs against a fixed hash when the email doesn't exist, so authorize()'s timing doesn't leak
+  account existence. This is DB-backed (not in-memory), so it survives restarts and works across
+  multiple server instances — the tradeoff other than a fixed lockout policy is one extra write
+  per failed attempt, which is negligible.
+- **Security headers.** `next.config.ts` now sets `X-Frame-Options: DENY`,
+  `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `Permissions-Policy`, HSTS, and a CSP
+  (`default-src 'self'`, with `'unsafe-inline'` on `script-src`/`style-src` since Next.js
+  hydration relies on inline scripts and Framer Motion sets inline styles — a nonce-based CSP
+  would remove this but requires per-request nonce injection in `proxy.ts`, which wasn't judged
+  worth the complexity here). `poweredByHeader: false` removes the `X-Powered-By: Next.js` header.
+- **Error boundaries + safe failure messages.** Added `app/error.tsx` and `app/global-error.tsx`.
+  Every Server Action in `app/actions/*.ts` (14 functions across 7 files) now wraps its
+  Prisma/business logic in try/catch, logging the real error server-side (`console.error`) and
+  returning the existing `{ error: "..." }` state shape with a generic message — so a DB hiccup
+  surfaces as a normal inline form error instead of an uncaught exception hitting the framework's
+  default error UI.
+- **`proxy.ts` now also gates `/api/notifications` and `/api/uploads`**, requiring a session
+  before the route handler runs (both already had their own manual `auth()` checks, so this is
+  defense-in-depth, not a fix for an actual hole) — `/api/auth/*` is deliberately excluded from
+  the matcher since that's NextAuth's own route.
+- **`trustHost: true` in `auth.ts`.** Discovered via the new e2e smoke tests: running the app with
+  `next start` (production mode) instead of `next dev` throws `UntrustedHost` on every request
+  unless this is set, because NextAuth v5 validates the incoming `Host` header strictly outside
+  dev mode. Standard for any self-hosted/non-Vercel deployment; safe as long as the platform in
+  front of the app (reverse proxy, PaaS) sets accurate Host headers rather than trusting the
+  public internet directly.
+- **`session.maxAge` set to 7 days** (was framework-default 30 days, unbounded in practice since
+  nothing else capped it).
+- **`npm audit` (3 high-severity, via `prisma`'s CLI dependency on a vulnerable `deepmerge-ts`)**:
+  fixed via a package.json `overrides` pin (`deepmerge-ts: ^8.0.2`) rather than downgrading
+  `prisma`/`@prisma/client` 7 minor versions to 6.12.0 (npm's suggested fix) — the vulnerable
+  code path is only reachable through the `prisma` CLI's config-merging (`prisma generate`/
+  `migrate`), not through `@prisma/client`, which never depends on `deepmerge-ts` and is the only
+  one of the two actually running in the deployed server process. Verified `prisma generate`/
+  `validate` still work correctly under the override.
+- **`.env.example`** added, documenting the three required variables and the SQLite→Postgres
+  swap path already described above.
+- **Minimal CI** (`.github/workflows/ci.yml`): a `build` job (install, `prisma generate`,
+  `tsc --noEmit`, lint, `next build`) on every push/PR, and an `e2e` job that seeds a throwaway
+  SQLite DB and runs the new Playwright smoke suite against a production build.
+- **First real automated tests** (`tests/smoke.spec.ts`, `playwright.config.ts`): landing page
+  loads, an unknown login gets a generic rejection, all three roles can sign in and land on their
+  own dashboard, a student is redirected away from a lecturer-only route, and a signed-out visitor
+  is redirected to sign-in from a protected route. `playwright.config.ts` deliberately runs with
+  `workers: 1` (not parallel) — running the suite in parallel against the SQLite dev datastore
+  produced intermittent login failures from `SQLITE_BUSY`-style write contention under concurrent
+  `authorize()` calls hitting the same file, not a real app bug. This is exactly the class of
+  problem the SQLite→Postgres swap (documented above) resolves; once the app runs on Postgres in
+  CI/production, `fullyParallel: true` can be restored safely.
+
+**Deliberately not done, and why:** a Dockerfile/`docker-compose.yml` (the natural target for a
+Next.js app like this is Vercel or a similar platform that doesn't need one — adding one
+speculatively for an unspecified host would be dead weight); structured error tracking/monitoring
+(Sentry or equivalent) and centralized logging (needs a real third-party account/DSN this
+environment can't provision); a nonce-based CSP (see above); and file-upload magic-byte sniffing
+(the upload validator currently trusts the client-supplied MIME type plus a server-side extension
+allowlist and random-UUID storage filenames — good enough against path traversal and drive-by
+uploads, but not a substitute for a real antivirus/content-inspection pipeline if this ever
+accepts uploads from untrusted external parties rather than authenticated students).

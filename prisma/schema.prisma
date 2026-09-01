@@ -89,6 +89,8 @@ model User {
   pendingSupervisorId String?
   notificationsEnabled Boolean   @default(true)
   meetingReminders     Boolean   @default(true)
+  failedLoginAttempts Int       @default(0)
+  lockedUntil    DateTime?
   createdAt      DateTime   @default(now())
 
   projectsAsStudent  Project[]       @relation("StudentProjects")

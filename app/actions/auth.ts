@@ -9,6 +9,8 @@ import { logAudit } from "@/lib/audit";
 import { notify } from "@/lib/notify";
 import { revalidatePath } from "next/cache";
 
+const GENERIC_ERROR = "Something went wrong. Please try again.";
+
 const registerLecturerSchema = z.object({
   name: z.string().min(2, "Enter your full name"),
   email: z.string().email("Enter a valid email"),
@@ -36,34 +38,39 @@ export async function registerLecturer(_prev: RegisterState, formData: FormData)
   }
   const { name, email, password, staffId, departmentId } = parsed.data;
 
-  const existingEmail = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
-  if (existingEmail) return { error: "An account with that email already exists." };
+  try {
+    const existingEmail = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+    if (existingEmail) return { error: "An account with that email already exists." };
 
-  const existingStaffId = await prisma.user.findUnique({ where: { staffId } });
-  if (existingStaffId) return { error: "That staff ID is already registered." };
+    const existingStaffId = await prisma.user.findUnique({ where: { staffId } });
+    if (existingStaffId) return { error: "That staff ID is already registered." };
 
-  const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await bcrypt.hash(password, 10);
 
-  const lecturer = await prisma.user.create({
-    data: {
-      name,
-      email: email.toLowerCase(),
-      passwordHash,
-      role: "LECTURER",
-      status: "ACTIVE",
-      staffId,
-      departmentId,
-      maxLoad: 15,
-    },
-  });
+    const lecturer = await prisma.user.create({
+      data: {
+        name,
+        email: email.toLowerCase(),
+        passwordHash,
+        role: "LECTURER",
+        status: "ACTIVE",
+        staffId,
+        departmentId,
+        maxLoad: 15,
+      },
+    });
 
-  await logAudit({
-    actorId: lecturer.id,
-    action: "LECTURER_REGISTERED",
-    description: `${name} registered as a lecturer (staff ID ${staffId}).`,
-  });
+    await logAudit({
+      actorId: lecturer.id,
+      action: "LECTURER_REGISTERED",
+      description: `${name} registered as a lecturer (staff ID ${staffId}).`,
+    });
 
-  return { success: true };
+    return { success: true };
+  } catch (err) {
+    console.error("[registerLecturer]", err);
+    return { error: GENERIC_ERROR };
+  }
 }
 
 const createStudentSchema = z.object({
@@ -88,37 +95,42 @@ export async function createStudent(_prev: CreateStudentState, formData: FormDat
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
   const { name, email, matricNumber } = parsed.data;
 
-  const existingEmail = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
-  if (existingEmail) return { error: "A user with that email already exists." };
-  const existingMatric = await prisma.user.findUnique({ where: { matricNumber } });
-  if (existingMatric) return { error: "That matric number is already registered." };
+  try {
+    const existingEmail = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+    if (existingEmail) return { error: "A user with that email already exists." };
+    const existingMatric = await prisma.user.findUnique({ where: { matricNumber } });
+    if (existingMatric) return { error: "That matric number is already registered." };
 
-  const lecturer = await prisma.user.findUnique({ where: { id: session.user.id } });
+    const lecturer = await prisma.user.findUnique({ where: { id: session.user.id } });
 
-  const activationToken = randomBytes(24).toString("hex");
+    const activationToken = randomBytes(24).toString("hex");
 
-  const student = await prisma.user.create({
-    data: {
-      name,
-      email: email.toLowerCase(),
-      matricNumber,
-      role: "STUDENT",
-      status: "PENDING_ACTIVATION",
-      departmentId: lecturer?.departmentId,
-      pendingSupervisorId: session.user.id,
-      activationToken,
-    },
-  });
+    const student = await prisma.user.create({
+      data: {
+        name,
+        email: email.toLowerCase(),
+        matricNumber,
+        role: "STUDENT",
+        status: "PENDING_ACTIVATION",
+        departmentId: lecturer?.departmentId,
+        pendingSupervisorId: session.user.id,
+        activationToken,
+      },
+    });
 
-  await logAudit({
-    actorId: session.user.id,
-    action: "STUDENT_CREATED",
-    description: `${session.user.name} added ${name} (${matricNumber}) as a student, pending activation.`,
-  });
+    await logAudit({
+      actorId: session.user.id,
+      action: "STUDENT_CREATED",
+      description: `${session.user.name} added ${name} (${matricNumber}) as a student, pending activation.`,
+    });
 
-  revalidatePath("/lecturer/students");
+    revalidatePath("/lecturer/students");
 
-  return { success: true, activationUrl: `/activate/${activationToken}?student=${encodeURIComponent(student.id)}` };
+    return { success: true, activationUrl: `/activate/${activationToken}?student=${encodeURIComponent(student.id)}` };
+  } catch (err) {
+    console.error("[createStudent]", err);
+    return { error: GENERIC_ERROR };
+  }
 }
 
 const activateSchema = z.object({
@@ -136,34 +148,39 @@ export async function activateStudent(_prev: ActivateState, formData: FormData):
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
   const { token, password } = parsed.data;
 
-  const student = await prisma.user.findUnique({ where: { activationToken: token } });
-  if (!student || student.status !== "PENDING_ACTIVATION") {
-    return { error: "This activation link is invalid or has already been used." };
-  }
-
-  const passwordHash = await bcrypt.hash(password, 10);
-
-  await prisma.user.update({
-    where: { id: student.id },
-    data: { passwordHash, status: "ACTIVE", activationToken: null },
-  });
-
-  await logAudit({
-    actorId: student.id,
-    action: "STUDENT_ACTIVATED",
-    description: `${student.name} activated their account.`,
-  });
-
-  if (student.pendingSupervisorId) {
-    const supervisor = await prisma.user.findUnique({ where: { id: student.pendingSupervisorId } });
-    if (supervisor) {
-      await notify(
-        student.id,
-        `You're all set — ${supervisor.name} is your supervisor. Create your project to get started.`,
-        "/student"
-      );
+  try {
+    const student = await prisma.user.findUnique({ where: { activationToken: token } });
+    if (!student || student.status !== "PENDING_ACTIVATION") {
+      return { error: "This activation link is invalid or has already been used." };
     }
-  }
 
-  return { success: true };
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    await prisma.user.update({
+      where: { id: student.id },
+      data: { passwordHash, status: "ACTIVE", activationToken: null },
+    });
+
+    await logAudit({
+      actorId: student.id,
+      action: "STUDENT_ACTIVATED",
+      description: `${student.name} activated their account.`,
+    });
+
+    if (student.pendingSupervisorId) {
+      const supervisor = await prisma.user.findUnique({ where: { id: student.pendingSupervisorId } });
+      if (supervisor) {
+        await notify(
+          student.id,
+          `You're all set — ${supervisor.name} is your supervisor. Create your project to get started.`,
+          "/student"
+        );
+      }
+    }
+
+    return { success: true };
+  } catch (err) {
+    console.error("[activateStudent]", err);
+    return { error: GENERIC_ERROR };
+  }
 }

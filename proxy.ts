@@ -5,6 +5,13 @@ export default auth((req) => {
   const { pathname } = req.nextUrl;
   const session = req.auth;
 
+  if (pathname.startsWith("/api/")) {
+    if (!session?.user) {
+      return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+    }
+    return NextResponse.next();
+  }
+
   const roleForPath = pathname.startsWith("/student")
     ? "STUDENT"
     : pathname.startsWith("/lecturer")
@@ -34,5 +41,11 @@ export default auth((req) => {
 });
 
 export const config = {
-  matcher: ["/student/:path*", "/lecturer/:path*", "/management/:path*"],
+  matcher: [
+    "/student/:path*",
+    "/lecturer/:path*",
+    "/management/:path*",
+    "/api/notifications/:path*",
+    "/api/uploads/:path*",
+  ],
 };
