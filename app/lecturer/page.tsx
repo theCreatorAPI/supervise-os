@@ -8,7 +8,7 @@ import { RiskBadge } from "@/components/supervise/risk-badge";
 import { CountUp } from "@/components/ui/count-up";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { DecideProposalButtons } from "@/components/supervise/decide-proposal-buttons";
-import { initials, timeAgo } from "@/lib/utils";
+import { firstName, initials, timeAgo } from "@/lib/utils";
 import { ArrowRight, AlertTriangle, Clock, Users, CheckCircle2, Search, ClipboardCheck } from "lucide-react";
 
 export default async function LecturerDashboard() {
@@ -61,7 +61,7 @@ export default async function LecturerDashboard() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="font-display text-2xl font-bold md:text-3xl">Welcome back, {session.user.name?.split(" ")[0]}</h1>
+        <h1 className="font-display text-2xl font-bold md:text-3xl">Welcome back, {firstName(session.user.name)}</h1>
         <p className="mt-1 text-sm text-muted-foreground">Here&apos;s where every one of your students stands, right now.</p>
       </div>
 

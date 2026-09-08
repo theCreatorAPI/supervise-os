@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Fraunces, Inter } from "next/font/google";
+import { Fraunces, Inter, Manrope } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { Toaster } from "sonner";
@@ -16,6 +16,15 @@ const inter = Inter({
   subsets: ["latin"],
 });
 
+// Geometric sans used only across the marketing hero — Fraunces stays the
+// brand's display serif everywhere else (h1/h2 across the app). Light weights
+// carry the oversized headline and the hero panel numerals.
+const manrope = Manrope({
+  variable: "--font-hero",
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+});
+
 export const metadata: Metadata = {
   title: "Supervise OS — Project Supervision, Under Control",
   description:
@@ -26,7 +35,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${fraunces.variable} ${inter.variable} h-full antialiased`}
+      className={`${fraunces.variable} ${inter.variable} ${manrope.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col bg-background text-foreground font-body">

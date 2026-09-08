@@ -1,57 +1,59 @@
 import Link from "next/link";
-import { Radar, Sparkles } from "lucide-react";
+import { Radar } from "lucide-react";
+import { AuthShowcase } from "@/components/supervise/auth-showcase";
 
 export function AuthLayout({
   title,
   subtitle,
+  footer,
   children,
 }: {
   title: string;
   subtitle: string;
+  /** The bottom bar: a question plus its counterpart link. */
+  footer: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
-    <div className="grid min-h-screen w-full lg:grid-cols-2">
-      <div className="relative hidden flex-col justify-between overflow-hidden bg-background-elevated p-10 lg:flex">
-        <div className="absolute -right-24 -top-24 size-80 rounded-full bg-brand-100 blur-[100px]" />
+    <div className="font-hero grid min-h-screen w-full bg-background-elevated lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
+      {/* Left — the form */}
+      <div className="relative flex flex-col px-6 py-8 lg:px-14 lg:py-10">
+        {/* Faint angular watermark, as in the reference */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-[0.55]"
+          style={{
+            backgroundImage:
+              "repeating-linear-gradient(45deg, rgba(41,45,50,0.045) 0px, rgba(41,45,50,0.045) 1px, transparent 1px, transparent 90px), repeating-linear-gradient(-45deg, rgba(41,45,50,0.045) 0px, rgba(41,45,50,0.045) 1px, transparent 1px, transparent 90px)",
+          }}
+        />
 
-        <Link href="/" className="relative z-10 flex items-center gap-2.5">
-          <div className="flex size-9 items-center justify-center rounded-lg bg-brand-500">
-            <Radar className="size-4.5 text-white" />
-          </div>
-          <span className="font-display text-lg font-bold">Supervise OS</span>
-        </Link>
+        <div className="relative z-10 flex flex-1 items-center justify-center py-10">
+          <div className="w-full max-w-sm">
+            <div className="flex flex-col items-center text-center">
+              <Link
+                href="/"
+                aria-label="Supervise OS home"
+                className="flex size-12 items-center justify-center rounded-2xl bg-brand-500 shadow-[0_6px_16px_-6px_rgba(79,95,49,0.7)] transition-transform hover:scale-105"
+              >
+                <Radar className="size-5 text-white" />
+              </Link>
+              <h1 className="mt-5 text-xl font-bold">{title}</h1>
+              <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">{subtitle}</p>
+            </div>
 
-        <div className="relative z-10 max-w-md">
-          <div className="mb-4 inline-flex items-center gap-1.5 rounded-full border border-border-strong bg-white px-3 py-1 text-xs text-brand-700">
-            <Sparkles className="size-3" /> Academic command center
+            <div className="mt-8">{children}</div>
           </div>
-          <h2 className="font-display text-4xl font-bold leading-[1.1] text-foreground">
-            Every project. Every milestone. Zero surprises.
-          </h2>
-          <p className="mt-4 text-sm text-muted-foreground">
-            Supervise OS tracks submissions, feedback, and risk in real time — so nothing slips
-            through the cracks between now and defense day.
-          </p>
         </div>
 
-        <p className="relative z-10 text-xs text-muted-foreground">
-          © {new Date().getFullYear()} Supervise OS — built for department pilots.
-        </p>
+        <div className="relative z-10 flex items-center justify-between gap-4 text-[13px] text-muted-foreground">
+          {footer}
+        </div>
       </div>
 
-      <div className="flex flex-col items-center justify-center px-6 py-12">
-        <div className="w-full max-w-sm">
-          <div className="mb-8 flex items-center gap-2.5 lg:hidden">
-            <div className="flex size-8 items-center justify-center rounded-lg bg-brand-500">
-              <Radar className="size-4 text-white" />
-            </div>
-            <span className="font-display text-base font-bold">Supervise OS</span>
-          </div>
-          <h1 className="font-display text-2xl font-bold">{title}</h1>
-          <p className="mt-1.5 text-sm text-muted-foreground">{subtitle}</p>
-          <div className="mt-8">{children}</div>
-        </div>
+      {/* Right — the marketing showcase */}
+      <div className="hidden p-3 lg:block">
+        <AuthShowcase />
       </div>
     </div>
   );

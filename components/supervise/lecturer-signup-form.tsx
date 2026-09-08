@@ -2,9 +2,8 @@
 
 import { useActionState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { motion } from "framer-motion";
-import { Loader2 } from "lucide-react";
+import { ArrowRight, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,21 +32,36 @@ export function LecturerSignUpForm({ departments }: { departments: { id: string;
       className="flex flex-col gap-4"
     >
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="name">Full name</Label>
-        <Input id="name" name="name" placeholder="Dr. Ada Lovelace" required />
+        <Label htmlFor="name" className="text-[13px] font-semibold">
+          Full name
+        </Label>
+        <Input id="name" name="name" placeholder="Dr. Ada Lovelace" className="border-border-strong bg-white" required />
       </div>
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="email">Email</Label>
-        <Input id="email" name="email" type="email" placeholder="you@university.edu" required />
+        <Label htmlFor="email" className="text-[13px] font-semibold">
+          Email
+        </Label>
+        <Input
+          id="email"
+          name="email"
+          type="email"
+          placeholder="you@university.edu"
+          className="border-border-strong bg-white"
+          required
+        />
       </div>
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="staffId">Staff ID</Label>
-        <Input id="staffId" name="staffId" placeholder="STF-00231" required />
+        <Label htmlFor="staffId" className="text-[13px] font-semibold">
+          Staff ID
+        </Label>
+        <Input id="staffId" name="staffId" placeholder="STF-00231" className="border-border-strong bg-white" required />
       </div>
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="departmentId">Department</Label>
+        <Label htmlFor="departmentId" className="text-[13px] font-semibold">
+          Department
+        </Label>
         <Select name="departmentId" required>
-          <SelectTrigger id="departmentId">
+          <SelectTrigger id="departmentId" className="border-border-strong bg-white">
             <SelectValue placeholder="Choose a department" />
           </SelectTrigger>
           <SelectContent>
@@ -60,8 +74,17 @@ export function LecturerSignUpForm({ departments }: { departments: { id: string;
         </Select>
       </div>
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="password">Password</Label>
-        <Input id="password" name="password" type="password" placeholder="At least 6 characters" required />
+        <Label htmlFor="password" className="text-[13px] font-semibold">
+          Password
+        </Label>
+        <Input
+          id="password"
+          name="password"
+          type="password"
+          placeholder="At least 6 characters"
+          className="border-border-strong bg-white"
+          required
+        />
       </div>
 
       {state.error && (
@@ -70,17 +93,19 @@ export function LecturerSignUpForm({ departments }: { departments: { id: string;
         </p>
       )}
 
-      <Button type="submit" size="lg" disabled={pending} className="mt-2">
+      <Button
+        type="submit"
+        variant="secondary"
+        size="lg"
+        disabled={pending}
+        className="mt-2 w-full rounded-xl border-transparent bg-foreground text-white hover:bg-foreground/90"
+      >
         {pending && <Loader2 className="size-4 animate-spin" />}
         Create account
+        {!pending && <ArrowRight className="size-4" />}
       </Button>
-      <p className="text-center text-sm text-muted-foreground">
-        Already have an account?{" "}
-        <Link href="/sign-in" className="text-brand-700 hover:underline">
-          Sign in
-        </Link>
-      </p>
-      <p className="text-center text-xs text-muted-foreground">
+
+      <p className="text-center text-xs leading-relaxed text-muted-foreground">
         A student? Ask your supervising lecturer to add you — you&apos;ll get an activation link.
       </p>
     </motion.form>

@@ -12,6 +12,18 @@ export function greeting(date: Date = new Date()) {
   return "Good Evening";
 }
 
+const HONORIFICS = new Set(["dr", "dr.", "prof", "prof.", "professor", "mr", "mr.", "mrs", "mrs.", "ms", "ms.", "mx", "mx."]);
+
+/**
+ * The name to greet someone by. Lecturers are stored with their title
+ * ("Dr. Amara Chen"), so naively taking the first word greets them as "Dr."
+ */
+export function firstName(fullName: string | null | undefined, fallback = "there") {
+  const parts = (fullName ?? "").split(" ").filter(Boolean);
+  const named = parts.find((part) => !HONORIFICS.has(part.toLowerCase()));
+  return named ?? fallback;
+}
+
 export function initials(name: string) {
   return name
     .split(" ")

@@ -80,6 +80,7 @@
 
 html {
   color-scheme: light;
+  scroll-behavior: smooth;
 }
 
 body {
@@ -96,6 +97,19 @@ h1, h2, h3, h4, h5, h6 {
 
 .font-display {
   font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Marketing surfaces (landing page, auth) set their type in the geometric sans.
+   Headings need naming explicitly: the h1–h6 rule above is an element selector,
+   so plain inheritance from an ancestor would never reach them. */
+.font-hero,
+.font-hero h1,
+.font-hero h2,
+.font-hero h3,
+.font-hero h4,
+.font-hero h5,
+.font-hero h6 {
+  font-family: var(--font-hero), ui-sans-serif, system-ui, sans-serif;
 }
 
 .text-gradient {

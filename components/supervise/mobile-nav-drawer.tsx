@@ -6,6 +6,7 @@ import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { Menu, X, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { firstName } from "@/lib/utils";
 
 type NavLink = { label: string; href: string };
 
@@ -74,7 +75,7 @@ export function MobileNavDrawer({
               {dashboardHref ? (
                 <Button asChild onClick={() => setOpen(false)}>
                   <Link href={dashboardHref}>
-                    {userName ? `Continue as ${userName.split(" ")[0]}` : "Dashboard"} <ArrowRight className="size-4" />
+                    {userName ? `Continue as ${firstName(userName)}` : "Dashboard"} <ArrowRight className="size-4" />
                   </Link>
                 </Button>
               ) : (

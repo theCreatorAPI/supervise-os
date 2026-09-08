@@ -35,7 +35,10 @@ export function Footer() {
           <ul className="mt-4 flex flex-col gap-2.5">
             {PRODUCT_LINKS.map((link) => (
               <li key={link.href}>
-                <a href={link.href} className="text-sm text-foreground/80 hover:text-brand-700">
+                <a
+                  href={link.href}
+                  className="-my-1 inline-block py-1.5 text-sm text-foreground/80 transition-colors hover:text-brand-700"
+                >
                   {link.label}
                 </a>
               </li>
@@ -48,7 +51,10 @@ export function Footer() {
           <ul className="mt-4 flex flex-col gap-2.5">
             {ACCOUNT_LINKS.map((link) => (
               <li key={link.href}>
-                <Link href={link.href} className="text-sm text-foreground/80 hover:text-brand-700">
+                <Link
+                  href={link.href}
+                  className="-my-1 inline-block py-1.5 text-sm text-foreground/80 transition-colors hover:text-brand-700"
+                >
                   {link.label}
                 </Link>
               </li>

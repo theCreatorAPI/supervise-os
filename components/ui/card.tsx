@@ -5,7 +5,9 @@ function Card({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       className={cn(
-        "glass rounded-2xl shadow-[0_1px_0_0_rgba(255,255,255,0.06)_inset]",
+        // min-w-0: as a grid/flex item a card defaults to min-width:auto, which lets
+        // nowrap content (truncated rows, badges) push it wider than its column.
+        "glass min-w-0 rounded-2xl shadow-[0_1px_0_0_rgba(255,255,255,0.06)_inset]",
         className
       )}
       {...props}
