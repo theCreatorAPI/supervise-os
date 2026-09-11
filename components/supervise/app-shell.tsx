@@ -101,7 +101,7 @@ export function AppShell({
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col pb-20 md:pb-0">
-        <header className="sticky top-0 z-30 flex items-center justify-between border-b border-border bg-background/70 px-4 py-3.5 backdrop-blur-xl md:px-8">
+        <header className="sticky top-0 z-30 flex items-center justify-between border-b border-border bg-background/70 px-4 py-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)] backdrop-blur-xl backdrop-saturate-150 md:px-8">
           <div className="flex items-center gap-2 md:hidden">
             <div className="flex size-8 items-center justify-center rounded-lg bg-brand-500">
               <Radar className="size-4 text-white" />
@@ -141,7 +141,7 @@ export function AppShell({
         <main className="flex-1 px-4 py-6 md:px-8 md:py-8">{children}</main>
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-around border-t border-border bg-background-elevated/90 py-2 backdrop-blur-xl md:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-around border-t border-border bg-background-elevated/80 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] backdrop-blur-xl backdrop-saturate-150 md:hidden">
         {primaryItems.map((item) => {
           const Icon = item.icon;
           return (

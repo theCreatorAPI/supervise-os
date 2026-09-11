@@ -131,6 +131,50 @@ h1, h2, h3, h4, h5, h6 {
   box-shadow: 0 2px 4px rgba(16, 24, 40, 0.04), 0 12px 32px -8px rgba(16, 24, 40, 0.14);
 }
 
+/*
+ * Frosted glass, for elements that genuinely float over other content: the
+ * app bars, the hero's readout panels, the showcase cards.
+ *
+ * Deliberately separate from `.glass` above, which is an opaque card surface.
+ * `.glass` also backs the dropdowns, selects and dialogs — those sit over
+ * arbitrary page content and have to stay opaque to remain readable, so making
+ * the shared class translucent would quietly wreck every menu in the product.
+ *
+ * The saturate() is what stops a blurred backdrop looking washed out, and the
+ * inset highlight gives the top edge the lit rim that sells the material.
+ */
+.glass-panel {
+  background: color-mix(in srgb, var(--surface) 62%, transparent);
+  backdrop-filter: blur(18px) saturate(165%);
+  -webkit-backdrop-filter: blur(18px) saturate(165%);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 1px 2px rgba(16, 24, 40, 0.05),
+    0 14px 34px -14px rgba(16, 24, 40, 0.24);
+}
+
+.glass-panel-dark {
+  background: rgba(8, 14, 5, 0.42);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 22px 50px -22px rgba(0, 0, 0, 0.7);
+}
+
+/* Without backdrop-filter the panels would be plain translucent rectangles and
+   the text over them could fall below contrast. Go opaque instead. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass-panel {
+    background: var(--surface);
+  }
+  .glass-panel-dark {
+    background: rgba(8, 14, 5, 0.92);
+  }
+}
+
 .glow-brand {
   box-shadow: 0 0 0 1px rgba(79, 95, 49, 0.25), 0 4px 16px -4px rgba(79, 95, 49, 0.2);
 }

@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
 import { Radar, ArrowRight, ArrowDown, ArrowUpRight, Radio, Gauge, Bell, GitBranch, Quote, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { CountUp } from "@/components/ui/count-up";
 import { ScrollReveal } from "@/components/supervise/scroll-reveal";
 import { MobileNavDrawer } from "@/components/supervise/mobile-nav-drawer";
 import { AtRiskMockup } from "@/components/supervise/mockups/at-risk-mockup";
@@ -14,8 +14,28 @@ import { HeroBackdrop } from "@/components/supervise/hero-backdrop";
 import { MilestoneCapsule } from "@/components/supervise/milestone-capsule";
 import { FeatureOrb } from "@/components/supervise/feature-orb";
 import { ShowcaseCarousel } from "@/components/supervise/showcase-carousel";
+import { Parallax } from "@/components/supervise/parallax";
+import { SpringCard } from "@/components/supervise/spring-card";
+import { StatFigure } from "@/components/supervise/stat-figure";
 import { CheckCircle2 } from "lucide-react";
 import { cn, firstName } from "@/lib/utils";
+
+// three.js is ~600KB, and the hero reads correctly without it — so it loads in
+// its own chunk, client-side only, over the SVG backdrop that paints instantly.
+// `loading: null` plus the mount gate below keeps the server and client markup
+// identical; without it the ssr:false boundary suspends the whole page tree
+// during SSR and React reports a hydration mismatch on the root element.
+const HeroScene = dynamic(() => import("@/components/supervise/hero-scene"), {
+  ssr: false,
+  loading: () => null,
+});
+
+// Lenis reaches straight for <html> and the scroll position, so it only ever
+// runs after hydration.
+const SmoothScroll = dynamic(() => import("@/components/supervise/smooth-scroll"), {
+  ssr: false,
+  loading: () => null,
+});
 
 const NAV_LINKS = [
   { label: "Features", href: "#features" },
@@ -114,6 +134,8 @@ export function LandingPage({
   userName: string | null;
 }) {
   const [scrolled, setScrolled] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [sceneEnabled, setSceneEnabled] = useState(false);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
@@ -122,8 +144,27 @@ export function LandingPage({
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- client-only mount guard, so the WebGL hero and Lenis never participate in server-rendered markup
+    setMounted(true);
+  }, []);
+
+  // The WebGL hero is desktop-only, and the gate lives here rather than inside
+  // the scene so phones never download the three.js chunk at all. A full-screen
+  // shader is the single most expensive thing on this page and mobile GPUs pay
+  // for it in frames and battery; the SVG backdrop underneath already carries
+  // the same design at no cost.
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)");
+    const apply = () => setSceneEnabled(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
+
   return (
     <div className="font-hero relative min-h-screen overflow-x-hidden">
+      {mounted && <SmoothScroll />}
       <header
         className={cn(
           "fixed inset-x-0 top-0 z-30 transition-colors duration-300",
@@ -228,7 +269,11 @@ export function LandingPage({
 
       {/* Section 1 — Hero */}
       <section className="relative min-h-screen overflow-hidden bg-[#0b1206]">
+        {/* The SVG backdrop paints instantly and stays as the WebGL fallback;
+            the live scene fades in over it once its chunk has loaded. */}
         <HeroBackdrop />
+        {mounted && sceneEnabled && <HeroScene />}
+        <div aria-hidden className="absolute inset-0 bg-[radial-gradient(78%_62%_at_44%_36%,transparent_34%,rgba(4,8,2,0.7)_100%)]" />
 
         {/* Layout rules, as in the reference */}
         <div aria-hidden className="pointer-events-none absolute inset-y-0 left-[17%] hidden w-px bg-white/[0.08] lg:block" />
@@ -236,7 +281,13 @@ export function LandingPage({
         <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-[26%] hidden h-px bg-white/[0.08] lg:block" />
 
         <div className="relative mx-auto flex min-h-screen max-w-344 flex-col px-6 pb-8 pt-26 lg:px-12 lg:pt-28">
-          <div className="grid flex-1 grid-cols-1 items-center gap-12 lg:grid-cols-12 lg:gap-8">
+          <Parallax
+            y={-90}
+            fadeTo={0.15}
+            start="top top"
+            end="bottom top"
+            className="grid flex-1 grid-cols-1 items-center gap-12 lg:grid-cols-12 lg:gap-8"
+          >
             {/* Left — headline and supporting copy */}
             <div className="flex flex-col justify-center lg:col-span-7 lg:col-start-2">
               <motion.h1
@@ -283,8 +334,7 @@ export function LandingPage({
               initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.12, duration: 0.6 }}
-              className="hidden rounded-4xl bg-black/35 p-8 backdrop-blur-xl lg:col-span-4 lg:block"
-              style={{ boxShadow: "inset 0 1px 0 rgba(255,255,255,0.12)" }}
+              className="glass-panel-dark hidden rounded-4xl p-8 lg:col-span-4 lg:block"
             >
               <p className="text-[15px] text-white/85">Milestone progress</p>
 
@@ -317,7 +367,7 @@ export function LandingPage({
                 <span>6 milestones</span>
               </div>
             </motion.div>
-          </div>
+          </Parallax>
 
           {/* Bottom row — three zones, as in the reference */}
           <div className="mt-auto grid grid-cols-1 items-end gap-8 pt-10 sm:grid-cols-3">
@@ -358,7 +408,11 @@ export function LandingPage({
       <section id="analytics" className="scroll-mt-24 bg-background py-24 lg:py-32">
         <div className="mx-auto grid max-w-344 grid-cols-1 items-center gap-16 px-6 lg:grid-cols-2 lg:gap-24 lg:px-12">
           <ScrollReveal direction="left">
-            <MilestoneCapsule />
+            {/* Drifts against the copy column beside it, which gives the pair a
+                sense of depth as the section passes through the viewport. */}
+            <Parallax y={-46} start="top bottom" end="bottom top">
+              <MilestoneCapsule />
+            </Parallax>
           </ScrollReveal>
 
           <ScrollReveal direction="right">
@@ -423,7 +477,7 @@ export function LandingPage({
           <div className="mt-20 grid grid-cols-1 gap-x-10 gap-y-14 sm:grid-cols-2 lg:grid-cols-4">
             {FEATURES.map((f, i) => (
               <ScrollReveal key={f.title} direction="up" delay={i * 0.06}>
-                <div className="group">
+                <SpringCard className="group">
                   <div className="relative w-fit">
                     <FeatureOrb seed={i + 1} icon={f.icon} />
                     <a
@@ -436,7 +490,7 @@ export function LandingPage({
                   </div>
                   <h3 className="mt-6 text-[15px] font-semibold">{f.title}</h3>
                   <p className="mt-2.5 text-[13px] leading-relaxed text-muted-foreground">{f.body}</p>
-                </div>
+                </SpringCard>
               </ScrollReveal>
             ))}
           </div>
@@ -485,10 +539,11 @@ export function LandingPage({
                   <p className="text-xs tracking-[0.14em] text-muted-foreground">
                     [ {String(i + 1).padStart(2, "0")} ]
                   </p>
-                  <p className="mt-3 text-4xl font-light sm:text-5xl">
-                    <CountUp value={s.value} />
-                    {s.suffix}
-                  </p>
+                  <StatFigure
+                    value={s.value}
+                    suffix={s.suffix}
+                    className="mt-3 block text-4xl font-light sm:text-5xl"
+                  />
                   <p className="mt-2 text-[13px] text-muted-foreground">{s.label}</p>
                 </div>
               ))}

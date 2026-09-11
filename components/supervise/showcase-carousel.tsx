@@ -112,7 +112,7 @@ export function ShowcaseCarousel() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.3 }}
-              className="w-56 rounded-2xl border border-white/50 bg-white/75 p-4 backdrop-blur-md"
+              className="w-56 glass-panel rounded-2xl p-4"
             >
               <p className="text-[13px] font-medium text-foreground">{slide.bars.label}</p>
               <p className="mt-2 text-2xl font-semibold text-foreground">{slide.bars.value}</p>
@@ -138,7 +138,7 @@ export function ShowcaseCarousel() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.3, delay: 0.05 }}
-              className="w-60 rounded-2xl border border-white/50 bg-white/75 p-4 backdrop-blur-md"
+              className="w-60 glass-panel rounded-2xl p-4"
             >
               <p className="text-[13px] font-medium text-foreground">{slide.trend.label}</p>
               <div className="mt-3 flex items-end justify-between gap-4">

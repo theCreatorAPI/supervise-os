@@ -211,6 +211,70 @@ two buttons that sign you straight in as the seeded demo student or demo lecture
 the reference's social-button slot and are genuinely functional, which a dead OAuth button
 would not be.
 
+## Motion and material
+
+Six animation libraries ship on this project, which is more than any one page
+needs. They earn their place only because each owns a job the others do badly,
+and because **no two of them ever animate the same element** — two libraries
+writing the same `transform` will fight, and the bug looks like random jitter.
+
+| Library | Owns | Why not one of the others |
+| --- | --- | --- |
+| **three.js** | The hero's live dune surface (`hero-scene.tsx`) | Nothing else here renders geometry with real lighting |
+| **GSAP ScrollTrigger** | Scroll-*scrubbed* parallax (`parallax.tsx`) | Tying a transform continuously to scroll position is its speciality |
+| **Lenis** | Smooth scrolling + anchor navigation (`smooth-scroll.tsx`) | Not an animation library at all — it owns the scroll position itself |
+| **framer-motion** | One-shot reveals and slide transitions (`scroll-reveal.tsx`, carousels) | Declarative `whileInView`/`AnimatePresence` is the least code for this |
+| **react-spring** | Pointer tilt on the capability cards (`spring-card.tsx`) | Interruptible: reversing mid-travel carries velocity instead of restarting |
+| **anime.js** | Counting the stat numerals (`stat-figure.tsx`) | Tweens a plain JS number, which the transform-oriented libraries do awkwardly |
+
+Rules that keep them out of each other's way:
+
+- `ScrollReveal` wraps a **parent**; `SpringCard` animates the **child**. Each
+  owns its own element's transform.
+- Lenis and CSS `scroll-behavior: smooth` cannot both be on. `SmoothScroll`
+  clears the CSS rule on mount and restores it on unmount, so the dashboards —
+  which never mount Lenis — keep native smooth scrolling.
+- Lenis honours a target's own `scroll-margin-top`. Every section already has
+  `scroll-mt-24`, so `lenis.scrollTo` passes **no** extra offset; adding one put
+  headings twice as far down the viewport.
+- Every one of them checks `prefers-reduced-motion` individually. The block in
+  `globals.css` only overrides CSS transitions, and all six animate through
+  inline styles or canvas, so none of them are covered by it.
+
+### Cost, and who pays it
+
+three.js is ~526 KB of the built output. It is loaded through `next/dynamic`
+with `ssr: false`, in its own chunk, and gated behind a `(min-width: 768px)`
+media query **in the page** rather than inside the scene — so phones never
+download it at all. Measured in a headless browser at phone width, the scene
+took the landing page from 61 fps to 18; without it, mobile is back to 61.
+
+The scene also stops its own render loop when the hero leaves the viewport or
+the tab is hidden, and caps `devicePixelRatio` at 1.5.
+
+Two traps worth remembering if this is ever extended:
+
+- A `dynamic(..., { ssr: false })` boundary **suspends the whole client tree**
+  during SSR, which React reports as a hydration mismatch on the page root. The
+  fix is `loading: () => null` plus a mounted flag, so the server and the first
+  client render both produce nothing.
+- Displacement noise has to stay well below the mesh's sampling rate. At 200
+  segments across a 90-unit plane a quad is ~0.45 units, and an octave that
+  turned over every ~1.3 units aliased the dunes into hard triangular shards.
+
+### Glass
+
+`.glass` and `.glass-strong` are **opaque** card surfaces, and they also back
+the dropdowns, selects and dialogs — those sit over arbitrary page content and
+have to stay readable, so they must not become translucent.
+
+Real frosted glass is therefore a separate pair, `.glass-panel` and
+`.glass-panel-dark`, used only where an element genuinely floats over other
+content: the hero readout, the showcase cards, the app bars. Both carry a
+`saturate()` (a blurred backdrop without it looks washed out), an inset top
+highlight for the lit rim, and an `@supports` fallback to an opaque background
+where `backdrop-filter` is unavailable, so text never drops below contrast.
+
 ## Deliberate departures from the reference
 
 Each of these was a considered choice rather than an oversight.
