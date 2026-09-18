@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SubmissionUploader } from "@/components/supervise/submission-uploader";
 import { formatDate, formatDateTime, formatBytes } from "@/lib/utils";
-import { submissionDownloadUrl } from "@/lib/storage";
+import { submissionDownloadUrl } from "@/lib/storage-url";
 import { ChevronLeft, Download } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 

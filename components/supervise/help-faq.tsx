@@ -1,6 +1,32 @@
 import { ChevronDown } from "lucide-react";
 
-const FAQS = [
+export type Faq = { q: string; a: string };
+
+/** What supervisors ask. Their questions are about running the review loop, not about being reviewed. */
+export const LECTURER_FAQS: Faq[] = [
+  {
+    q: "How do I add a student?",
+    a: "From My Students, use Add student. You'll get an activation link to share with them — they set their own password, and you're already recorded as their supervisor.",
+  },
+  {
+    q: "What do the review decisions do?",
+    a: "Approving marks the milestone complete and moves the project on. Requesting corrections returns the submission to the student, who can resubmit — the new version is kept alongside the old one rather than replacing it.",
+  },
+  {
+    q: "When does a project get flagged at risk?",
+    a: "Automatically, from four triggers: no submission in 21 days, a review left open 21 days, a milestone past its due date, or a missed meeting. One active trigger reads At Risk; two or more, or any single one open 35+ days, reads Critical.",
+  },
+  {
+    q: "Why can't I see another lecturer's students?",
+    a: "Supervision is scoped to you. Every student page checks that you're the supervising lecturer before it loads. Department-wide views belong to the management role.",
+  },
+  {
+    q: "Can I turn off notifications?",
+    a: "Yes — Settings has separate toggles for project updates and meeting reminders. Activity still appears on your dashboard either way.",
+  },
+];
+
+const FAQS: Faq[] = [
   {
     q: "How do I get a supervisor assigned?",
     a: "Your lecturer adds you as a student and sends you an activation link. Once you activate your account, that lecturer is already your supervisor — no extra step needed.",
@@ -23,10 +49,11 @@ const FAQS = [
   },
 ];
 
-export function HelpFaq() {
+/** Defaults to the student set so existing callers keep working unchanged. */
+export function HelpFaq({ items = FAQS }: { items?: Faq[] }) {
   return (
     <div className="flex flex-col gap-2">
-      {FAQS.map((item) => (
+      {items.map((item) => (
         <details key={item.q} className="group rounded-xl border border-border-strong bg-white px-4 py-3 open:pb-4">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium">
             {item.q}

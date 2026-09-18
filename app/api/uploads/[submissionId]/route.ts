@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import { readFile, stat } from "fs/promises";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { resolveUploadPath } from "@/lib/storage";
+import { downloadFile } from "@/lib/storage";
 
 export async function GET(req: Request, { params }: { params: Promise<{ submissionId: string }> }) {
   const session = await auth();
@@ -24,14 +23,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ submissi
   if (!allowed) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const storedName = submission.fileUrl.split("/").pop() ?? "";
-  const filePath = resolveUploadPath(storedName);
-  try {
-    await stat(filePath);
-  } catch {
-    return NextResponse.json({ error: "File missing" }, { status: 404 });
-  }
+  const buffer = await downloadFile(storedName);
+  if (!buffer) return NextResponse.json({ error: "File missing" }, { status: 404 });
 
-  const buffer = await readFile(filePath);
   const contentType = submission.fileName.toLowerCase().endsWith(".pdf")
     ? "application/pdf"
     : "application/octet-stream";

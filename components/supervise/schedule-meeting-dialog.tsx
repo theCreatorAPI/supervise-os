@@ -17,11 +17,29 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { scheduleMeeting, type MeetingState } from "@/app/actions/meetings";
 
 const initialState: MeetingState = {};
 
-export function ScheduleMeetingDialog({ projectId, projectTitle }: { projectId: string; projectTitle: string }) {
+type ProjectOption = { id: string; label: string };
+
+/**
+ * Schedules a supervision meeting.
+ *
+ * Two shapes, one dialog: given a `projectId` it schedules against that project
+ * (the project page), and given a list of `projects` it asks which student first
+ * (the meetings index, where nothing is selected yet).
+ */
+export function ScheduleMeetingDialog({
+  projectId,
+  projectTitle,
+  projects,
+}: {
+  projectId?: string;
+  projectTitle?: string;
+  projects?: ProjectOption[];
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(scheduleMeeting, initialState);
@@ -45,10 +63,30 @@ export function ScheduleMeetingDialog({ projectId, projectTitle }: { projectId: 
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Schedule a meeting</DialogTitle>
-          <DialogDescription>For {projectTitle}</DialogDescription>
+          <DialogDescription>
+            {projectTitle ? `For ${projectTitle}` : "Pick the student, then a time."}
+          </DialogDescription>
         </DialogHeader>
         <form action={formAction} className="flex flex-col gap-4">
-          <input type="hidden" name="projectId" value={projectId} />
+          {projectId ? (
+            <input type="hidden" name="projectId" value={projectId} />
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="projectId">Student</Label>
+              <Select name="projectId" required>
+                <SelectTrigger id="projectId">
+                  <SelectValue placeholder="Choose a student" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(projects ?? []).map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="title">Title</Label>
             <Input id="title" name="title" defaultValue="Supervision meeting" required />

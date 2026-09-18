@@ -141,7 +141,7 @@ export function AppShell({
         <main className="flex-1 px-4 py-6 md:px-8 md:py-8">{children}</main>
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-around border-t border-border bg-background-elevated/80 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] backdrop-blur-xl backdrop-saturate-150 md:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-30 flex items-stretch border-t border-border bg-background-elevated/80 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] backdrop-blur-xl backdrop-saturate-150 md:hidden">
         {primaryItems.map((item) => {
           const Icon = item.icon;
           return (
@@ -149,12 +149,12 @@ export function AppShell({
               key={item.href}
               href={item.href}
               className={cn(
-                "flex flex-col items-center gap-1 rounded-lg px-3 py-1.5 text-[10px] font-medium",
+                "flex min-w-0 flex-1 flex-col items-center gap-1 rounded-lg px-1 py-1.5 text-[10px] font-medium",
                 isActive(item.href) ? "text-brand-700" : "text-muted-foreground"
               )}
             >
-              <Icon className="size-5" />
-              {item.label}
+              <Icon className="size-5 shrink-0" />
+              <span className="w-full truncate text-center">{item.label}</span>
             </Link>
           );
         })}
@@ -163,12 +163,12 @@ export function AppShell({
             <DropdownMenuTrigger asChild>
               <button
                 className={cn(
-                  "flex flex-col items-center gap-1 rounded-lg px-3 py-1.5 text-[10px] font-medium",
+                  "flex min-w-0 flex-1 flex-col items-center gap-1 rounded-lg px-1 py-1.5 text-[10px] font-medium",
                   overflowItems.some((i) => isActive(i.href)) ? "text-brand-700" : "text-muted-foreground"
                 )}
               >
-                <MoreHorizontal className="size-5" />
-                More
+                <MoreHorizontal className="size-5 shrink-0" />
+                <span className="w-full truncate text-center">More</span>
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" side="top" className="w-48">

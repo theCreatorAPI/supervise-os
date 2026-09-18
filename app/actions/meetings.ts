@@ -67,6 +67,71 @@ export async function scheduleMeeting(_prev: MeetingState, formData: FormData): 
   }
 }
 
+const recordSchema = z.object({
+  meetingId: z.string(),
+  notes: z.string().max(4000).optional(),
+  actionItems: z.string().max(4000).optional(),
+});
+
+/**
+ * Saves the supervisor's write-up for a meeting. Only the supervising lecturer
+ * can record it — the student sees it but doesn't author it.
+ */
+export async function updateMeetingRecord(
+  _prev: MeetingState,
+  formData: FormData
+): Promise<MeetingState> {
+  const session = await auth();
+  if (!session?.user || session.user.role !== "LECTURER") {
+    return { error: "Only the supervising lecturer can record meeting notes." };
+  }
+
+  const parsed = recordSchema.safeParse({
+    meetingId: formData.get("meetingId"),
+    notes: formData.get("notes")?.toString() ?? undefined,
+    actionItems: formData.get("actionItems")?.toString() ?? undefined,
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  }
+  const { meetingId, notes, actionItems } = parsed.data;
+
+  try {
+    const meeting = await prisma.meeting.findUnique({
+      where: { id: meetingId },
+      include: { project: true },
+    });
+    if (!meeting) return { error: "Meeting not found." };
+    if (meeting.project.supervisorId !== session.user.id) {
+      return { error: "Not your meeting." };
+    }
+
+    await prisma.meeting.update({
+      where: { id: meetingId },
+      data: {
+        // Empty textareas clear the field rather than storing "".
+        notes: notes?.trim() ? notes.trim() : null,
+        actionItems: actionItems?.trim() ? actionItems.trim() : null,
+      },
+    });
+
+    await logAudit({
+      actorId: session.user.id,
+      projectId: meeting.projectId,
+      action: "MEETING_RECORD_UPDATED",
+      description: `${session.user.name} updated the record for "${meeting.title}".`,
+    });
+
+    revalidatePath(`/lecturer/meetings/${meetingId}`);
+    revalidatePath("/lecturer/meetings");
+    revalidatePath("/student/meetings");
+    return { success: true };
+  } catch (err) {
+    console.error("[updateMeetingRecord]", err);
+    return { error: GENERIC_ERROR };
+  }
+}
+
 export async function toggleMeetingComplete(meetingId: string, completed: boolean) {
   const session = await auth();
   if (!session?.user) return { error: "Not signed in." };

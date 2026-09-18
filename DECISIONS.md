@@ -244,3 +244,193 @@ environment can't provision); a nonce-based CSP (see above); and file-upload mag
 allowlist and random-UUID storage filenames — good enough against path traversal and drive-by
 uploads, but not a substitute for a real antivirus/content-inspection pipeline if this ever
 accepts uploads from untrusted external parties rather than authenticated students).
+
+---
+
+## Phase 4 — 2026-09-18: Supervisor flow, SEO, and a production-readiness pass
+
+### The supervisor flow spec
+
+A 12-screen PDF of the lecturer experience was supplied and implemented in full, on the
+project's existing moss-green palette rather than the spec's blue — the blue reads as a
+wireframe default, and changing the accent would have broken every other surface.
+
+Five screens didn't exist and were built: the submissions index, meeting details,
+notifications, settings, and help. Four that did exist were restructured to the spec: the
+dashboard (four named stat cards, a students table, recent activity), the roster (spec filter
+vocabulary, sort, current chapter, pagination), the project page (summary bar, submissions
+panel), and the review screen.
+
+The review screen was the substantive change. The spec separates *commenting* from *deciding* —
+a supervisor leaves as many notes as they need, then takes one decision that closes the review.
+The old `FeedbackForm` coupled the two into a single submit, so it was replaced by
+`ReviewPanel` and deleted. All three buttons post one form and rely on `name="decision"` on each
+submit button to put its own value into the FormData, so no client state tracks which was
+pressed. `giveFeedback` now accepts a decision with no typed comment, defaulting to
+"Approved." / "Corrections required.", because the spec's flow decides after commenting.
+
+`lib/project-status.ts` centralises the three derived values every supervisor screen shows —
+progress %, current chapter, and the status label. They must agree: a project reading
+"82% · On Track" on one screen and "In Progress" on another is worse than either label alone.
+
+`Meeting.actionItems` was added (nullable, migration `20260915170035_add_meeting_action_items`)
+along with an `updateMeetingRecord` action and an editable form. The spec shows an Action Items
+panel and there was no field for it; adding the column without a write path would have shipped
+a column nothing could fill.
+
+### Bugs found by testing the flows rather than reading them
+
+- **The review screen's document preview never rendered.** The global CSP applied
+  `frame-ancestors 'none'` to every path including `/api/uploads/*`, so the browser silently
+  blocked the PDF iframe — the spec's "Document Preview" pane was dead on arrival. `next.config.ts`
+  now relaxes framing to `'self'` for that one route (and `X-Frame-Options: SAMEORIGIN` alongside
+  it, since browsers that still honour the older header would keep blocking). Safe there
+  specifically: the route requires a session, checks the requester is the project's student, its
+  supervisor, or management, and pins Content-Type to `application/pdf` or `octet-stream`, so it
+  can never return HTML for the framed document to execute.
+- **"Add student" wiped the form on any error.** The inputs were uncontrolled with no
+  `defaultValue`, and React 19 resets a form once its action runs — so one mistyped field cleared
+  all three. `createStudent` now echoes the submitted values back in its state and the dialog
+  refills from them.
+- **The mobile tab bar overflowed at 320px.** Five items sized by their own padding pushed the
+  last one off-screen, where it couldn't be tapped. Each item now takes an equal share and
+  truncates.
+- **The student submissions row overflowed at 320px.** A `shrink-0` status block refused to
+  compress and widened the page; the row now wraps.
+
+### SEO and metadata
+
+`metadataBase` plus a title template, Open Graph and Twitter card tags, keywords, canonical
+links, and a `viewport` export carrying `themeColor`. `maximumScale` is deliberately 5 rather
+than 1 — capping zoom locks out anyone who needs to magnify.
+
+`app/robots.ts` and `app/sitemap.ts` expose only the three unauthenticated pages; every
+dashboard segment is disallowed in robots.txt *and* carries `robots: { index: false }` on its
+layout, because those URLs contain student names and project data. `app/manifest.ts` makes the
+dashboards installable to a phone home screen, which is how a supervisor checking submissions
+between lectures actually reaches them.
+
+Icons are `app/icon.svg` (one SVG, crisp at every size) plus `app/apple-icon.tsx` and
+`app/opengraph-image.tsx` generated from JSX at build time, so the wording and brand colours
+stay in sync with the app instead of drifting from a stale binary export. Both marks are drawn
+from bordered divs rather than a glyph: `ImageResponse` ships only a basic Latin font, so a
+symbol character like ◎ sends it looking for a dynamic font at build time and renders tofu when
+that lookup fails — which it did, visibly, on the first build.
+
+### Security
+
+`next` was patched 16.3.1 → 16.3.5, closing a **critical** unauthenticated RCE affecting
+Windows-hosted servers (GHSA-p293-qw3h-jr36) and an RCE in the Image Optimization API via AVIF
+(GHSA-2xp9-vwfh-vxw4), plus high-severity advisories in transitive `js-yaml` and `sharp`.
+`npm audit` reports 0 vulnerabilities.
+
+### Accessibility
+
+Tap targets across the supervisor screens were measured, not eyeballed: filter chips sat at
+29px, sort links at 28px, and pagination numbers were squashed to 25px wide by their flex
+parent. All now clear 32px. The landing page skipped from `h1` to `h3` because the insight
+section has no visible title, so it gained a screen-reader-only `h2` rather than a design change.
+
+## Phase 5 — 2026-09-18: Supabase backend
+
+Two things blocked deployment: the app ran on SQLite, and uploaded documents were written to
+local disk. Both assume a persistent filesystem that serverless hosting does not have. Supabase
+now provides Postgres and object storage; the rest of the architecture is unchanged.
+
+### Sessions stay on NextAuth
+
+Supabase Auth was not adopted. Sign-in is tied to university identifiers — matric numbers, staff
+IDs, lecturer activation tokens, the failed-login lockout counter — and the three-role model is
+enforced throughout the route tree. Moving identity to Supabase would mean rebuilding all of it
+for no gain, since the database and file store are what actually needed replacing. Supabase is
+infrastructure here, not the identity provider.
+
+### Migration history was regenerated, not converted
+
+The six SQLite migrations could not be replayed against Postgres: their DDL is SQLite-specific
+(`TEXT NOT NULL PRIMARY KEY`, enums stored as free text). They were replaced by a single
+Postgres baseline generated offline with `prisma migrate diff --from-empty`, which needs no live
+database. No information was lost — `schema.prisma` is the source of truth and the generated
+baseline reproduces it exactly, now with native Postgres enum types. The originals are recoverable
+from git history.
+
+The query layer needed no changes at all. There is no raw SQL anywhere in the codebase, and no
+`contains` / `startsWith` filters — which matters, because those are case-insensitive on SQLite
+and case-sensitive on Postgres, and would have silently changed search behaviour.
+
+### Row Level Security is a deployment requirement, not an optional hardening step
+
+Supabase publishes the `public` schema over PostgREST to anyone holding the project's anon key,
+which is public by design, and tables created by Prisma Migrate have RLS disabled. Left alone,
+every submission and review would have been readable and writable from a browser. Migration
+`00000000000001_enable_rls_lockdown` enables RLS on all eleven tables with no policies, denying
+the `anon` and `authenticated` roles outright. Prisma is unaffected because it connects as the
+table owner, which bypasses RLS — deliberately not `FORCE ROW LEVEL SECURITY`, which would lock
+the application out of its own data. Any new table needs the same line in the migration that
+creates it.
+
+### Documents stay behind the application's own proxy
+
+The `submissions` bucket is private, and `/api/uploads/[submissionId]` still performs the
+student/supervisor/management check before returning bytes. Public bucket URLs or signed links
+would have moved authorization out of the app and into whoever holds a URL, for unpublished
+student research. Keeping the proxy also meant the CSP work from Phase 4 kept applying unchanged,
+since the PDF preview iframe is still same-origin.
+
+The service-role key bypasses RLS, so it is confined to `lib/supabase-admin.ts`. The pure URL
+helper moved to `lib/storage-url.ts` so that a page needing a download link has no reason to
+import the module that reaches for the key — the two screens that link to documents now import
+from there.
+
+### The build no longer touches the database
+
+`/sign-up` was being statically prerendered while querying the department list. Against a local
+SQLite file that was invisible; against a network database it makes every build depend on the
+database being reachable, and freezes the department list until the next deploy. It is now
+`force-dynamic`. Every route that reads Postgres renders on demand, so `next build` completes
+with no database at all — verified by building against a connection string pointing nowhere.
+
+Migrations are not run during the build. They are applied deliberately with `npm run db:migrate`,
+so a schema change is a decision rather than a side effect of pushing code.
+
+### CI runs real Postgres
+
+The SQLite `file:./ci.db` was replaced with a `postgres:16` service container, so CI exercises the
+same engine as production. Storage is not provisioned there — nothing in the smoke suite touches
+uploaded documents, and the seed skips its placeholder upload when the Supabase variables are
+absent. Playwright stays serialized: the SQLite write-concurrency limit that originally forced
+that is gone, but the suite still asserts against a single shared seeded dataset.
+
+### Uploads go straight to storage, not through the server
+
+Moving files to Supabase exposed a bug that predates it. The uploader advertises 25MB and
+`MAX_FILE_SIZE` allows it, but submissions went through a Server Action — and Server Action
+requests are capped at 1MB by default, with no `serverActions.bodySizeLimit` configured. Any real
+chapter PDF would have been rejected before reaching application code. It went unnoticed because
+the only file ever exercised was the 582-byte seed placeholder.
+
+Raising the limit would have fixed self-hosting but not Vercel, where the platform caps request
+bodies far below 25MB regardless of framework config. So the file no longer passes through the
+server at all: `requestSubmissionUpload` authorizes the student and returns a one-shot signed URL,
+the browser `PUT`s directly to Supabase, and `finalizeSubmission` records the row from the object
+path alone. Small form fields are all that now cross a Server Action, so the 1MB default stops
+mattering.
+
+That hands the client a path it could tamper with, so finalize trusts two things and nothing else:
+an HMAC over `(userId, milestoneId, storedName)` signed at issue time with `NEXTAUTH_SECRET`,
+which means the server only accepts paths it issued for that student and milestone; and the file
+size read back from storage rather than taken from the request, which doubles as proof the upload
+actually happened. The HMAC is compared in constant time — a plain `===` leaks match length
+through timing, which is enough to forge a signature a byte at a time. It is deliberately
+stateless: a pending-upload table would need writing, expiring and cleaning up to buy nothing.
+
+`saveFile` was deleted rather than left in place, so nothing can quietly reintroduce the
+server-side path and its 1MB ceiling.
+
+Two consequences worth remembering. The browser now talks to the storage origin directly, so that
+origin has to be in `connect-src` — it is derived from `SUPABASE_URL` rather than wildcarded, so a
+deployment only ever permits its own project, and an unset variable narrows the policy instead of
+widening it. That also means **`SUPABASE_URL` must be present at build time**, since Next.js bakes
+headers into the build output; if it is missing, uploads fail in the browser with no server-side
+trace. The uploader also uses `XMLHttpRequest` rather than `fetch`, because only XHR reports
+progress events, and a 25MB upload with no feedback is indistinguishable from a hung page.

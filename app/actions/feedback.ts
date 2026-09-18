@@ -12,9 +12,18 @@ const GENERIC_ERROR = "Something went wrong. Please try again.";
 
 const schema = z.object({
   submissionId: z.string(),
-  comment: z.string().min(3, "Add at least a short comment."),
+  // Optional, because the review flow lets a supervisor add comments first and
+  // then click a decision on its own. A bare COMMENT_ONLY still needs words —
+  // that's checked below, where we know which decision it is.
+  comment: z.string().optional(),
   decision: z.enum(["APPROVED", "RETURNED", "COMMENT_ONLY"]),
 });
+
+/** What to record when a decision is taken without any accompanying note. */
+const DEFAULT_COMMENT: Record<string, string> = {
+  APPROVED: "Approved.",
+  RETURNED: "Corrections required.",
+};
 
 export type FeedbackState = { error?: string; success?: boolean };
 
@@ -32,7 +41,13 @@ export async function giveFeedback(_prev: FeedbackState, formData: FormData): Pr
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
   }
-  const { submissionId, comment, decision } = parsed.data;
+  const { submissionId, decision } = parsed.data;
+  const trimmed = parsed.data.comment?.trim() ?? "";
+
+  if (decision === "COMMENT_ONLY" && trimmed.length < 3) {
+    return { error: "Add at least a short comment." };
+  }
+  const comment = trimmed || DEFAULT_COMMENT[decision] || "";
 
   try {
     const submission = await prisma.submission.findUnique({

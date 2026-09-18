@@ -86,18 +86,31 @@ export function AddStudentDialog() {
             </DialogFooter>
           </div>
         ) : (
-          <form action={formAction} className="flex flex-col gap-4">
+          <form action={formAction} key={state.error ?? "new"} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="name">Full name</Label>
-              <Input id="name" name="name" placeholder="Layla Kim" required />
+              <Input id="name" name="name" defaultValue={state.values?.name} placeholder="Layla Kim" required />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="matricNumber">Matric number</Label>
-              <Input id="matricNumber" name="matricNumber" placeholder="CSC/2021/041" required />
+              <Input
+                id="matricNumber"
+                name="matricNumber"
+                defaultValue={state.values?.matricNumber}
+                placeholder="CSC/2021/041"
+                required
+              />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" name="email" type="email" placeholder="student@university.edu" required />
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                defaultValue={state.values?.email}
+                placeholder="student@university.edu"
+                required
+              />
             </div>
             {state.error && (
               <p className="rounded-lg border border-critical-500/30 bg-critical-500/10 px-3 py-2 text-xs text-critical-700">

@@ -26,9 +26,13 @@ export const NAV: Record<"STUDENT" | "LECTURER" | "MANAGEMENT", NavItem[]> = {
   ],
   LECTURER: [
     { label: "Dashboard", href: "/lecturer", icon: LayoutGrid },
-    { label: "Students", href: "/lecturer/students", icon: Users },
-    { label: "At Risk", href: "/lecturer/at-risk", icon: AlertTriangle },
+    { label: "My Students", href: "/lecturer/students", icon: Users },
+    { label: "Submissions", href: "/lecturer/submissions", icon: History },
     { label: "Meetings", href: "/lecturer/meetings", icon: CalendarClock },
+    { label: "Notifications", href: "/lecturer/notifications", icon: Bell },
+    // Not in the supervisor flow spec, but it's the risk engine's whole payoff
+    // and already built — kept rather than dropped.
+    { label: "At Risk", href: "/lecturer/at-risk", icon: AlertTriangle },
   ],
   MANAGEMENT: [
     { label: "Overview", href: "/management", icon: LayoutGrid },
@@ -44,7 +48,10 @@ export const SECONDARY_NAV: Record<"STUDENT" | "LECTURER" | "MANAGEMENT", NavIte
     { label: "Settings", href: "/student/settings", icon: Settings },
     { label: "Help & Support", href: "/student/help", icon: HelpCircle },
   ],
-  LECTURER: [],
+  LECTURER: [
+    { label: "Settings", href: "/lecturer/settings", icon: Settings },
+    { label: "Help & Support", href: "/lecturer/help", icon: HelpCircle },
+  ],
   MANAGEMENT: [],
 };
 

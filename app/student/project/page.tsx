@@ -143,7 +143,7 @@ export default async function MyProjectPage() {
           {project.milestones.every((m) => m.submissions.length === 0) && (
             <p className="py-4 text-sm text-muted-foreground">No documents submitted yet.</p>
           )}
-          <Link href="/student/submissions" className="mt-3 flex w-fit items-center gap-1 text-sm text-brand-700 hover:underline">
+          <Link href="/student/submissions" className="mt-2 flex w-fit items-center gap-1 py-2 text-sm text-brand-700 hover:underline">
             View all submissions <ArrowRight className="size-3.5" />
           </Link>
         </CardContent>

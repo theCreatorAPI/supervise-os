@@ -3,8 +3,14 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
+  // Supabase's transaction-mode pooler (port 6543). Serverless functions open a
+  // connection per invocation, so app queries must go through the pooler.
   url      = env("DATABASE_URL")
+  // Migrations and introspection need a direct session (port 5432): the
+  // transaction pooler can't run the advisory locks and DDL that Prisma Migrate
+  // depends on.
+  directUrl = env("DIRECT_URL")
 }
 
 enum Role {
@@ -167,6 +173,9 @@ model Meeting {
   title       String   @default("Supervision meeting")
   scheduledAt DateTime
   notes       String?
+  /// What the student agreed to do before the next meeting. Written by the
+  /// supervisor from the meeting detail page, after the meeting has happened.
+  actionItems String?
   completed   Boolean  @default(false)
   createdAt   DateTime @default(now())
 }

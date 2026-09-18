@@ -107,7 +107,11 @@ export default async function ManagementWorkloadPage({
                   <th key={c.key} className="pb-3 pr-4 font-medium">
                     <Link
                       href={`/management/workload?sort=${c.key}`}
-                      className={cn("hover:text-foreground", (sort ?? "students") === c.key && "text-brand-700")}
+                      className={cn(
+                        // Padded so the sort header is a real tap target, not a 14px line of text.
+                        "-my-2 inline-block py-2 hover:text-foreground",
+                        (sort ?? "students") === c.key && "text-brand-700"
+                      )}
                     >
                       {c.label}
                     </Link>

@@ -1,8 +1,26 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { AuthLayout } from "@/components/supervise/auth-layout";
 import { LecturerSignUpForm } from "@/components/supervise/lecturer-signup-form";
+
+export const metadata: Metadata = {
+  title: "Create a lecturer account",
+  description:
+    "Register as a supervising lecturer on Supervise OS and start tracking your students' milestones, submissions and reviews.",
+  alternates: { canonical: "/sign-up" },
+  openGraph: {
+    title: "Create a lecturer account · Supervise OS",
+    description: "Register as a supervising lecturer on Supervise OS.",
+    url: "/sign-up",
+  },
+};
+
+// Rendered per request: the department list is editable data living in Postgres,
+// so prerendering it at build time would both freeze the options until the next
+// deploy and make every build depend on the database being reachable.
+export const dynamic = "force-dynamic";
 
 export default async function SignUpPage() {
   const departments = await prisma.department.findMany({ orderBy: { name: "asc" } });

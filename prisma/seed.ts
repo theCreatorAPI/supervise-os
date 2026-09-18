@@ -1,8 +1,36 @@
+import { readFile } from "fs/promises";
+import path from "path";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { recomputeAllRisk } from "../lib/risk-engine";
+import { getSupabaseAdmin } from "../lib/supabase-admin";
+import { SUBMISSIONS_BUCKET } from "../lib/storage";
 
 const prisma = new PrismaClient();
+
+/** The stored object every seeded submission points at. */
+const SEED_PLACEHOLDER = "seed-placeholder.pdf";
+
+/**
+ * Every seeded submission has a fileUrl of /api/uploads/seed-placeholder.pdf, so
+ * the demo review screens only render a document if that one object actually
+ * exists in the bucket. Uploading it here keeps the seeded data truthful.
+ */
+async function seedPlaceholderDocument() {
+  // CI seeds a throwaway Postgres container with no Supabase project behind it.
+  // The placeholder only backs the document preview, so skipping it there keeps
+  // the rest of the seed usable rather than failing the whole run.
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.log("  Supabase storage not configured — skipping placeholder upload.");
+    return;
+  }
+
+  const buffer = await readFile(path.join(process.cwd(), "uploads", SEED_PLACEHOLDER));
+  const { error } = await getSupabaseAdmin()
+    .storage.from(SUBMISSIONS_BUCKET)
+    .upload(SEED_PLACEHOLDER, buffer, { contentType: "application/pdf", upsert: true });
+  if (error) throw new Error(`Could not upload the seed placeholder: ${error.message}`);
+}
 
 const MILESTONE_TEMPLATE = [
   "Topic Approval",
@@ -147,6 +175,9 @@ async function seedMilestoneApproved(
 }
 
 async function main() {
+  console.log("Uploading seed placeholder document...");
+  await seedPlaceholderDocument();
+
   console.log("Clearing existing data...");
   await prisma.auditEvent.deleteMany();
   await prisma.riskIndicator.deleteMany();

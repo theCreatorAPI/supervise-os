@@ -405,7 +405,13 @@ export function LandingPage({
       </section>
 
       {/* Section 2 — Insight: capsule visual beside a numbered list */}
-      <section id="analytics" className="scroll-mt-24 bg-background py-24 lg:py-32">
+      <section id="analytics" aria-labelledby="analytics-heading" className="scroll-mt-24 bg-background py-24 lg:py-32">
+        {/* The design shows no title here — the numbered list is the content. This
+            names the section for screen readers so its h3 items don't follow the
+            page h1 with the h2 level skipped. */}
+        <h2 id="analytics-heading" className="sr-only">
+          What Supervise OS gives a supervisor
+        </h2>
         <div className="mx-auto grid max-w-344 grid-cols-1 items-center gap-16 px-6 lg:grid-cols-2 lg:gap-24 lg:px-12">
           <ScrollReveal direction="left">
             {/* Drifts against the copy column beside it, which gives the pair a

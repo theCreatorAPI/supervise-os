@@ -2,8 +2,10 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./tests",
-  // Serialized: the dev/CI datastore is SQLite, which doesn't handle concurrent
-  // writes well (see DECISIONS.md). Safe to parallelize once running against Postgres.
+  // Serialized: the suite runs against a single seeded database and several
+  // specs assert on that shared demo data, so concurrent runs would race each
+  // other. The SQLite write-concurrency limit that originally forced this is
+  // gone (see DECISIONS.md), but the shared-fixture constraint remains.
   fullyParallel: false,
   workers: 1,
   forbidOnly: !!process.env.CI,

@@ -10,7 +10,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: "file:./ci.db"
+      # The build only needs the schema to resolve; it never opens a connection.
+      DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/supervise_test"
+      DIRECT_URL: "postgresql://postgres:postgres@localhost:5432/supervise_test"
       NEXTAUTH_SECRET: "ci-secret-not-for-production"
       NEXTAUTH_URL: "http://localhost:3000"
     steps:
@@ -40,8 +42,27 @@ jobs:
   e2e:
     runs-on: ubuntu-latest
     needs: build
+    # Postgres in CI rather than a hosted Supabase project: the schema is the
+    # same, and a throwaway container keeps test runs isolated and free of
+    # shared-state flakiness. Supabase Storage is not provisioned here because
+    # nothing in the smoke suite touches uploaded documents.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: supervise_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     env:
-      DATABASE_URL: "file:./ci.db"
+      DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/supervise_test"
+      DIRECT_URL: "postgresql://postgres:postgres@localhost:5432/supervise_test"
       NEXTAUTH_SECRET: "ci-secret-not-for-production"
       NEXTAUTH_URL: "http://localhost:3000"
     steps:

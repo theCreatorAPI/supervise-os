@@ -11,8 +11,10 @@ import { MilestoneStatusBadge } from "@/components/supervise/milestone-status-ba
 import { ProgressConstellation } from "@/components/supervise/progress-constellation";
 import { MilestoneDueDateEditor } from "@/components/supervise/milestone-due-date-editor";
 import { AuditLog } from "@/components/supervise/audit-log";
-import { initials, formatDateTime } from "@/lib/utils";
-import { ChevronLeft, Mail, Search } from "lucide-react";
+import { ProgressBar } from "@/components/ui/progress-bar";
+import { summariseProject, statusBadgeVariant } from "@/lib/project-status";
+import { initials, formatDate, formatDateTime } from "@/lib/utils";
+import { ChevronLeft, FileText, Mail, Search } from "lucide-react";
 
 export default async function LecturerProjectDetailPage({
   params,
@@ -41,11 +43,25 @@ export default async function LecturerProjectDetailPage({
   if (project.supervisorId !== session.user.id) redirect("/lecturer");
 
   const reasons: string[] = JSON.parse(project.riskReasons || "[]");
+  const summary = summariseProject(project, project.milestones);
+
+  // Every submission on the project, newest first, for the Submissions panel.
+  const submissions = project.milestones
+    .flatMap((m) => m.submissions.map((sub) => ({ ...sub, milestone: m })))
+    .sort((a, b) => b.submittedAt.getTime() - a.submittedAt.getTime());
+
+  function submissionStatus(reviews: { decision: string; createdAt: Date }[]) {
+    if (reviews.length === 0) return { label: "Under Review", variant: "brandSoft" as const };
+    const latest = [...reviews].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
+    if (latest.decision === "APPROVED") return { label: "Approved", variant: "onSchedule" as const };
+    if (latest.decision === "RETURNED") return { label: "Correction Required", variant: "overdue" as const };
+    return { label: "Under Review", variant: "brandSoft" as const };
+  }
 
   return (
     <div className="flex flex-col gap-6">
       <Link href="/lecturer/students" className="flex w-fit items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-        <ChevronLeft className="size-4" /> Back to students
+        <ChevronLeft className="size-4" /> My Students
       </Link>
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -83,6 +99,32 @@ export default async function LecturerProjectDetailPage({
       )}
 
       <Card>
+        <CardContent className="grid grid-cols-2 gap-6 py-6 lg:grid-cols-4">
+          <div>
+            <p className="text-xs text-muted-foreground">Project Status</p>
+            <div className="mt-1.5">
+              <Badge variant={statusBadgeVariant(summary.status.key)}>{summary.status.label}</Badge>
+            </div>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Overall Progress</p>
+            <p className="mt-1 text-sm font-semibold">{summary.progress}%</p>
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs text-muted-foreground">Supervisor</p>
+            <p className="mt-1 truncate text-sm font-semibold">{session.user.name}</p>
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs text-muted-foreground">Current Chapter</p>
+            <p className="mt-1 truncate text-sm font-semibold">{summary.currentMilestone?.name ?? "—"}</p>
+          </div>
+          <div className="col-span-2 lg:col-span-4">
+            <ProgressBar value={summary.progress} />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
         <CardHeader>
           <CardTitle>Progress Constellation</CardTitle>
         </CardHeader>
@@ -93,8 +135,8 @@ export default async function LecturerProjectDetailPage({
 
       <Card>
         <CardHeader>
-          <CardTitle>Milestones</CardTitle>
-          <CardDescription>Review submissions, adjust due dates.</CardDescription>
+          <CardTitle>Project Milestones</CardTitle>
+          <CardDescription>Track progress across each stage of the project</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           {project.milestones.map((m) => {
@@ -128,6 +170,56 @@ export default async function LecturerProjectDetailPage({
               </div>
             );
           })}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Submissions</CardTitle>
+          <CardDescription>Review and manage project submissions</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-2">
+          {submissions.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              Nothing submitted yet.
+            </p>
+          ) : (
+            <>
+              {submissions.slice(0, 5).map((sub) => {
+                const state = submissionStatus(sub.reviews);
+                return (
+                  <div
+                    key={sub.id}
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border-strong bg-black/2 px-4 py-3"
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      <FileText className="size-4 shrink-0 text-brand-700" />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">
+                          {sub.milestone.name} <span className="text-muted-foreground">· v{sub.version}</span>
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Submitted {formatDate(sub.submittedAt)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={state.variant}>{state.label}</Badge>
+                      <Button size="sm" variant="secondary" asChild>
+                        <Link href={`/lecturer/review/${sub.id}`}>Review</Link>
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+              <Link
+                href="/lecturer/submissions"
+                className="-my-1 mt-1 flex w-fit items-center gap-1 py-2 text-sm font-medium text-brand-700 hover:underline"
+              >
+                View all submissions →
+              </Link>
+            </>
+          )}
         </CardContent>
       </Card>
 

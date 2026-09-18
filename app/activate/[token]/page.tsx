@@ -1,9 +1,16 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { AuthLayout } from "@/components/supervise/auth-layout";
 import { ActivateForm } from "@/components/supervise/activate-form";
+
+/** A single-use invite URL — never index it. */
+export const metadata: Metadata = {
+  title: "Activate your account",
+  robots: { index: false, follow: false, nocache: true },
+};
 
 export default async function ActivatePage({
   params,

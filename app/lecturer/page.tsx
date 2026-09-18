@@ -4,12 +4,13 @@ import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { RiskBadge } from "@/components/supervise/risk-badge";
 import { CountUp } from "@/components/ui/count-up";
+import { ProgressBar } from "@/components/ui/progress-bar";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { DecideProposalButtons } from "@/components/supervise/decide-proposal-buttons";
-import { firstName, initials, timeAgo } from "@/lib/utils";
-import { ArrowRight, AlertTriangle, Clock, Users, CheckCircle2, Search, ClipboardCheck } from "lucide-react";
+import { summariseProject, statusBadgeVariant } from "@/lib/project-status";
+import { firstName, initials, timeAgo, greeting } from "@/lib/utils";
+import { Users, FolderKanban, Search, CalendarClock, ClipboardCheck } from "lucide-react";
 
 export default async function LecturerDashboard() {
   const session = await auth();
@@ -25,24 +26,21 @@ export default async function LecturerDashboard() {
   });
 
   const activeProjects = projects.filter((p) => p.status === "ACTIVE");
-  const overdue = activeProjects.filter((p) => p.riskLevel === "CRITICAL");
-  const atRisk = activeProjects.filter((p) => p.riskLevel === "AT_RISK");
-  const onSchedule = activeProjects.filter((p) => p.riskLevel === "NORMAL");
 
-  const awaitingReview = projects
-    .flatMap((p) =>
-      p.milestones
-        .filter((m) => m.status === "UNDER_REVIEW")
-        .map((m) => ({
-          project: p,
-          milestone: m,
-          submission: m.submissions[m.submissions.length - 1],
-        }))
-    )
-    .filter((x) => x.submission)
-    .sort((a, b) => a.submission.submittedAt.getTime() - b.submission.submittedAt.getTime());
+  const awaitingReview = projects.flatMap((p) =>
+    p.milestones.filter((m) => m.status === "UNDER_REVIEW").map((m) => m.id)
+  );
 
-  const needsAttention = [...overdue, ...atRisk].sort((a, b) => (a.riskLevel === b.riskLevel ? 0 : a.riskLevel === "CRITICAL" ? -1 : 1));
+  // "This week" — the next seven days, which is what a supervisor is preparing for.
+  const weekFromNow = new Date();
+  weekFromNow.setDate(weekFromNow.getDate() + 7);
+  const upcomingMeetings = await prisma.meeting.count({
+    where: {
+      project: { supervisorId: session.user.id },
+      completed: false,
+      scheduledAt: { gte: new Date(), lte: weekFromNow },
+    },
+  });
 
   const pendingProposals = await prisma.topicProposal.findMany({
     where: { status: "PENDING", student: { pendingSupervisorId: session.user.id } },
@@ -50,31 +48,74 @@ export default async function LecturerDashboard() {
     orderBy: { createdAt: "asc" },
   });
 
+  const recentActivity = await prisma.auditEvent.findMany({
+    where: { project: { supervisorId: session.user.id } },
+    orderBy: { createdAt: "desc" },
+    take: 6,
+  });
+
   const stats = [
-    { label: "Students", value: projects.length, icon: Users, color: "text-brand-700", href: "/lecturer/students" },
-    { label: "Awaiting review", value: awaitingReview.length, icon: Search, color: "text-brand-700", href: "/lecturer/students" },
-    { label: "Critical", value: overdue.length, icon: AlertTriangle, color: "text-critical-700", href: "/lecturer/at-risk?risk=CRITICAL" },
-    { label: "At risk", value: atRisk.length, icon: Clock, color: "text-warn-700", href: "/lecturer/at-risk?risk=AT_RISK" },
-    { label: "Normal", value: onSchedule.length, icon: CheckCircle2, color: "text-success-700", href: "/lecturer/students?risk=NORMAL" },
+    {
+      label: "Total Students",
+      caption: "Active students",
+      value: projects.length,
+      icon: Users,
+      href: "/lecturer/students",
+    },
+    {
+      label: "Active Projects",
+      caption: "Currently supervised",
+      value: activeProjects.length,
+      icon: FolderKanban,
+      href: "/lecturer/students",
+    },
+    {
+      label: "Pending Reviews",
+      caption: "Awaiting your review",
+      value: awaitingReview.length,
+      icon: Search,
+      href: "/lecturer/submissions?status=under-review",
+    },
+    {
+      label: "Upcoming Meetings",
+      caption: "This week",
+      value: upcomingMeetings,
+      icon: CalendarClock,
+      href: "/lecturer/meetings",
+    },
   ];
+
+  const roster = projects.map((p) => ({
+    id: p.id,
+    student: p.student.name,
+    title: p.title,
+    summary: summariseProject(p, p.milestones),
+  }));
 
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="font-display text-2xl font-bold md:text-3xl">Welcome back, {firstName(session.user.name)}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Here&apos;s where every one of your students stands, right now.</p>
+        <h1 className="font-display text-2xl font-bold md:text-3xl">
+          {greeting()}, {firstName(session.user.name)}
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Here&apos;s an overview of your supervision activities.
+        </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {stats.map((s) => (
           <Link key={s.label} href={s.href}>
-            <Card className="transition-transform hover:-translate-y-0.5">
-              <CardContent className="flex flex-col gap-2 pt-6">
-                <s.icon className={`size-4 ${s.color}`} />
+            <Card className="h-full transition-transform hover:-translate-y-0.5">
+              <CardContent className="flex flex-col gap-1 py-5">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <s.icon className="size-4" />
+                  <p className="text-xs font-medium">{s.label}</p>
+                </div>
                 <p className="font-display text-3xl font-bold">
                   <CountUp value={s.value} />
                 </p>
-                <p className="text-xs text-muted-foreground">{s.label}</p>
+                <p className="text-xs text-muted-foreground">{s.caption}</p>
               </CardContent>
             </Card>
           </Link>
@@ -93,7 +134,7 @@ export default async function LecturerDashboard() {
             {pendingProposals.map((p) => (
               <div
                 key={p.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border-strong bg-black/[0.02] p-3"
+                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border-strong bg-black/2 p-3"
               >
                 <div className="flex items-center gap-3">
                   <Avatar>
@@ -111,89 +152,107 @@ export default async function LecturerDashboard() {
         </Card>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertTriangle className="size-4 text-warn-700" /> Needs your attention
-            </CardTitle>
-            <CardDescription>Projects flagged by the risk engine.</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            {needsAttention.length === 0 ? (
-              <p className="rounded-xl border border-dashed border-border-strong px-4 py-8 text-center text-sm text-muted-foreground">
-                Nothing on fire. Everyone&apos;s on track 🎉
-              </p>
-            ) : (
-              needsAttention.slice(0, 6).map((p) => (
-                <Link
-                  key={p.id}
-                  href={`/lecturer/students/${p.id}`}
-                  className="flex items-center gap-3 rounded-xl border border-border-strong bg-black/[0.02] p-3 transition-colors hover:bg-black/[0.05]"
-                >
-                  <Avatar>
-                    <AvatarFallback>{initials(p.student.name)}</AvatarFallback>
-                  </Avatar>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{p.student.name}</p>
-                    <p className="truncate text-xs text-muted-foreground">{p.title}</p>
-                  </div>
-                  <RiskBadge level={p.riskLevel} />
-                </Link>
-              ))
-            )}
-            {needsAttention.length > 6 && (
-              <Button variant="secondary" size="sm" asChild>
-                <Link href="/lecturer/at-risk">
-                  View all {needsAttention.length} <ArrowRight className="size-3.5" />
-                </Link>
-              </Button>
-            )}
-          </CardContent>
-        </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>My Students</CardTitle>
+          <CardDescription>Students currently under your supervision</CardDescription>
+        </CardHeader>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Search className="size-4 text-brand-700" /> Awaiting your review
-            </CardTitle>
-            <CardDescription>Oldest submissions first.</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            {awaitingReview.length === 0 ? (
-              <p className="rounded-xl border border-dashed border-border-strong px-4 py-8 text-center text-sm text-muted-foreground">
-                Inbox zero. Nothing waiting on you.
-              </p>
-            ) : (
-              awaitingReview.slice(0, 6).map((x) => (
-                <Link
-                  key={x.submission.id}
-                  href={`/lecturer/review/${x.submission.id}`}
-                  className="flex items-center gap-3 rounded-xl border border-border-strong bg-black/[0.02] p-3 transition-colors hover:bg-black/[0.05]"
-                >
-                  <Avatar>
-                    <AvatarFallback>{initials(x.project.student.name)}</AvatarFallback>
-                  </Avatar>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">
-                      {x.project.student.name} · {x.milestone.name}
-                    </p>
-                    <p className="text-xs text-muted-foreground">Submitted {timeAgo(x.submission.submittedAt)}</p>
-                  </div>
-                  <Badge variant="brand">v{x.submission.version}</Badge>
-                </Link>
-              ))
-            )}
-            {awaitingReview.length > 6 && (
-              <Button variant="secondary" size="sm" asChild>
-                <Link href="/lecturer/students">
-                  View all students <ArrowRight className="size-3.5" />
-                </Link>
-              </Button>
-            )}
+        {roster.length === 0 ? (
+          <CardContent className="py-12 text-center text-sm text-muted-foreground">
+            No students yet. Add one from My Students to get started.
           </CardContent>
-        </Card>
-      </div>
+        ) : (
+          <>
+            {/* Desktop: the table from the flow spec */}
+            <CardContent className="hidden overflow-x-auto p-0 md:block">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                    <th className="px-6 py-3 font-medium">Student</th>
+                    <th className="px-6 py-3 font-medium">Project</th>
+                    <th className="px-6 py-3 font-medium">Progress</th>
+                    <th className="px-6 py-3 font-medium">Status</th>
+                    <th className="px-6 py-3 font-medium">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {roster.slice(0, 6).map((r) => (
+                    <tr key={r.id} className="border-b border-border/60 last:border-0">
+                      <td className="px-6 py-3.5 font-medium">{r.student}</td>
+                      <td className="max-w-70 truncate px-6 py-3.5 text-muted-foreground">{r.title}</td>
+                      <td className="px-6 py-3.5">{r.summary.progress}%</td>
+                      <td className="px-6 py-3.5">
+                        <Badge variant={statusBadgeVariant(r.summary.status.key)}>{r.summary.status.label}</Badge>
+                      </td>
+                      <td className="px-6 py-3.5">
+                        <Button size="sm" variant="secondary" asChild>
+                          <Link href={`/lecturer/students/${r.id}`}>View</Link>
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </CardContent>
+
+            {/* Mobile: the same rows, stacked */}
+            <CardContent className="flex flex-col gap-3 md:hidden">
+              {roster.slice(0, 6).map((r) => (
+                <Link
+                  key={r.id}
+                  href={`/lecturer/students/${r.id}`}
+                  className="flex flex-col gap-2 rounded-xl border border-border-strong bg-black/2 p-3 transition-colors hover:bg-black/5"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{r.student}</p>
+                      <p className="truncate text-xs text-muted-foreground">{r.title}</p>
+                    </div>
+                    <Badge variant={statusBadgeVariant(r.summary.status.key)}>{r.summary.status.label}</Badge>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <ProgressBar value={r.summary.progress} className="flex-1" />
+                    <span className="text-xs text-muted-foreground">{r.summary.progress}%</span>
+                  </div>
+                </Link>
+              ))}
+            </CardContent>
+          </>
+        )}
+      </Card>
+
+      <Card>
+        <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
+          <div>
+            <CardTitle>Recent Activity</CardTitle>
+            <CardDescription>Latest updates from your students</CardDescription>
+          </div>
+          <Link
+            href="/lecturer/notifications"
+            className="-my-1 shrink-0 py-1.5 text-sm font-medium text-brand-700 hover:underline"
+          >
+            View All
+          </Link>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-2">
+          {recentActivity.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              Nothing yet. Activity appears here as your students submit and you review.
+            </p>
+          ) : (
+            recentActivity.map((event) => (
+              <div
+                key={event.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border-strong bg-black/2 px-4 py-3"
+              >
+                <p className="min-w-0 text-sm">{event.description}</p>
+                <p className="shrink-0 text-xs text-muted-foreground">{timeAgo(event.createdAt)}</p>
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -41,9 +41,14 @@ yarn-error.log*
 # vercel
 .vercel
 
-# prisma / uploads
+# prisma
+# Local-only SQLite artifacts from before the Postgres/Supabase switch.
 /prisma/dev.db
 /prisma/dev.db-journal
+
+# uploads
+# Submitted documents live in Supabase Storage, not on disk. This directory only
+# holds the placeholder PDF the seed uploads to the bucket.
 /uploads/*
 !/uploads/seed-placeholder.pdf
 

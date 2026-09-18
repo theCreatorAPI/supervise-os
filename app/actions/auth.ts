@@ -79,7 +79,17 @@ const createStudentSchema = z.object({
   matricNumber: z.string().min(2, "Enter a matric number"),
 });
 
-export type CreateStudentState = { error?: string; success?: boolean; activationUrl?: string };
+export type CreateStudentState = {
+  error?: string;
+  success?: boolean;
+  activationUrl?: string;
+  /**
+   * What the lecturer typed, echoed back so a rejected submit can refill the
+   * form. React resets a form once its action runs, so without this every
+   * validation error wipes all three fields and they have to retype them.
+   */
+  values?: { name: string; email: string; matricNumber: string };
+};
 
 export async function createStudent(_prev: CreateStudentState, formData: FormData): Promise<CreateStudentState> {
   const session = await auth();
@@ -87,19 +97,23 @@ export async function createStudent(_prev: CreateStudentState, formData: FormDat
     return { error: "Only lecturers can add students." };
   }
 
-  const parsed = createStudentSchema.safeParse({
-    name: formData.get("name"),
-    email: formData.get("email"),
-    matricNumber: formData.get("matricNumber"),
-  });
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  const submitted = {
+    name: (formData.get("name") ?? "").toString(),
+    email: (formData.get("email") ?? "").toString(),
+    matricNumber: (formData.get("matricNumber") ?? "").toString(),
+  };
+
+  const parsed = createStudentSchema.safeParse(submitted);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid input.", values: submitted };
+  }
   const { name, email, matricNumber } = parsed.data;
 
   try {
     const existingEmail = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
-    if (existingEmail) return { error: "A user with that email already exists." };
+    if (existingEmail) return { error: "A user with that email already exists.", values: submitted };
     const existingMatric = await prisma.user.findUnique({ where: { matricNumber } });
-    if (existingMatric) return { error: "That matric number is already registered." };
+    if (existingMatric) return { error: "That matric number is already registered.", values: submitted };
 
     const lecturer = await prisma.user.findUnique({ where: { id: session.user.id } });
 
@@ -129,7 +143,7 @@ export async function createStudent(_prev: CreateStudentState, formData: FormDat
     return { success: true, activationUrl: `/activate/${activationToken}?student=${encodeURIComponent(student.id)}` };
   } catch (err) {
     console.error("[createStudent]", err);
-    return { error: GENERIC_ERROR };
+    return { error: GENERIC_ERROR, values: submitted };
   }
 }
 

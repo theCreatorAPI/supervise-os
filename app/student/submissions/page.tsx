@@ -80,12 +80,12 @@ export default async function SubmissionsPage() {
             </div>
           ) : (
             allSubmissions.slice(0, 8).map((s) => (
-              <div key={s.id} className="flex items-center justify-between gap-3 border-b border-border/60 py-3 last:border-0">
-                <div>
-                  <p className="text-sm font-medium">{s.milestoneName}</p>
+              <div key={s.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-border/60 py-3 last:border-0">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{s.milestoneName}</p>
                   <p className="text-xs text-muted-foreground">Submitted {formatDate(s.submittedAt)}</p>
                 </div>
-                <div className="flex shrink-0 items-center gap-3">
+                <div className="flex items-center gap-3">
                   <Badge
                     variant={s.milestoneStatus === "APPROVED" ? "onSchedule" : s.milestoneStatus === "RETURNED" ? "overdue" : "brandSoft"}
                   >
@@ -93,7 +93,7 @@ export default async function SubmissionsPage() {
                   </Badge>
                   <Link
                     href={`/student/submit/${s.milestoneId}`}
-                    className="flex items-center gap-1 text-xs text-brand-700 hover:underline"
+                    className="-my-1 flex items-center gap-1 py-2 text-xs text-brand-700 hover:underline"
                   >
                     View details <ArrowRight className="size-3" />
                   </Link>

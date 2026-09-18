@@ -4,9 +4,9 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { FeedbackForm } from "@/components/supervise/feedback-form";
-import { submissionDownloadUrl } from "@/lib/storage";
-import { formatDateTime, formatBytes } from "@/lib/utils";
+import { ReviewPanel } from "@/components/supervise/review-panel";
+import { submissionDownloadUrl } from "@/lib/storage-url";
+import { formatDate, formatDateTime, formatBytes } from "@/lib/utils";
 import { ChevronLeft, Download, FileText } from "lucide-react";
 
 export default async function ReviewSubmissionPage({
@@ -36,7 +36,21 @@ export default async function ReviewSubmissionPage({
   if (project.supervisorId !== session.user.id) redirect("/lecturer");
 
   const isPdf = submission.fileName.toLowerCase().endsWith(".pdf");
-  const alreadyReviewed = submission.reviews.length > 0;
+
+  /** The closing decision on a submission, if one has been taken. */
+  function decisionOf(reviews: { decision: string; createdAt: Date }[]) {
+    const closing = [...reviews]
+      .filter((r) => r.decision === "APPROVED" || r.decision === "RETURNED")
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
+    return (closing?.decision as "APPROVED" | "RETURNED" | undefined) ?? null;
+  }
+
+  const decided = decisionOf(submission.reviews);
+  const headerStatus = decided === "APPROVED"
+    ? { label: "Approved", variant: "onSchedule" as const }
+    : decided === "RETURNED"
+      ? { label: "Correction Required", variant: "overdue" as const }
+      : { label: "Under Review", variant: "brandSoft" as const };
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6">
@@ -45,13 +59,18 @@ export default async function ReviewSubmissionPage({
       </Link>
 
       <div>
-        <div className="mb-2 flex items-center gap-2">
-          <Badge variant="outline">Milestone {submission.milestone.order}</Badge>
-          <Badge variant="brand">v{submission.version}</Badge>
-        </div>
-        <h1 className="font-display text-2xl font-bold md:text-3xl">{submission.milestone.name}</h1>
+        <h1 className="font-display text-2xl font-bold md:text-3xl">Review Submission</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          {project.student.name} · {project.title}
+          Review and provide feedback on student submissions
+        </p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <h2 className="font-display text-xl font-semibold">{submission.milestone.name}</h2>
+        <Badge variant={headerStatus.variant}>{headerStatus.label}</Badge>
+        <Badge variant="outline">v{submission.version}</Badge>
+        <p className="w-full text-sm text-muted-foreground">
+          {project.student.name} · Submitted {formatDate(submission.submittedAt)}
         </p>
       </div>
 
@@ -59,10 +78,11 @@ export default async function ReviewSubmissionPage({
         <Card className="lg:col-span-3">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <FileText className="size-4" /> {submission.fileName}
+              <FileText className="size-4" /> Document Preview
             </CardTitle>
             <CardDescription>
-              {formatBytes(submission.fileSize)} · Submitted {formatDateTime(submission.submittedAt)}
+              {submission.fileName} · {formatBytes(submission.fileSize)} · Submitted{" "}
+              {formatDateTime(submission.submittedAt)}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -91,57 +111,75 @@ export default async function ReviewSubmissionPage({
         <div className="flex flex-col gap-6 lg:col-span-2">
           <Card>
             <CardHeader>
-              <CardTitle>{alreadyReviewed ? "Feedback given" : "Leave feedback"}</CardTitle>
+              <CardTitle>Review &amp; Comments</CardTitle>
               <CardDescription>
-                {alreadyReviewed ? "This submission has already been reviewed." : "Your decision updates the milestone status instantly."}
+                {decided
+                  ? "This submission has been reviewed."
+                  : "Add comments as you read, then take a decision."}
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {alreadyReviewed ? (
-                <div className="flex flex-col gap-2">
-                  {submission.reviews.map((f) => (
-                    <div key={f.id} className="rounded-lg bg-black/[0.03] p-3">
-                      <div className="mb-1 flex items-center justify-between">
-                        <span className="text-xs font-semibold">{f.lecturer.name}</span>
-                        <Badge variant={f.decision === "APPROVED" ? "onSchedule" : f.decision === "RETURNED" ? "overdue" : "outline"}>
-                          {f.decision.replace("_", " ")}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground">{f.comment}</p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <FeedbackForm submissionId={submission.id} milestoneName={submission.milestone.name} />
-              )}
+              <ReviewPanel
+                submissionId={submission.id}
+                milestoneName={submission.milestone.name}
+                decided={decided}
+                reviews={submission.reviews.map((r) => ({
+                  id: r.id,
+                  comment: r.comment,
+                  decision: r.decision,
+                  author: r.lecturer.name,
+                }))}
+              />
             </CardContent>
           </Card>
-
-          {submission.milestone.submissions.length > 1 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Earlier versions</CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-2">
-                {submission.milestone.submissions
-                  .filter((s) => s.id !== submission.id)
-                  .map((s) => (
-                    <a
-                      key={s.id}
-                      href={submissionDownloadUrl(s.id)}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex items-center justify-between rounded-lg bg-black/[0.02] px-3 py-2 text-xs hover:bg-black/[0.05]"
-                    >
-                      <span>v{s.version} · {s.fileName}</span>
-                      <Download className="size-3.5 text-muted-foreground" />
-                    </a>
-                  ))}
-              </CardContent>
-            </Card>
-          )}
         </div>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Submission History</CardTitle>
+          <CardDescription>Every version of this milestone, newest first.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-2">
+          {submission.milestone.submissions.map((version) => {
+            const versionDecision = decisionOf(version.reviews);
+            const label = versionDecision === "APPROVED"
+              ? "Approved"
+              : versionDecision === "RETURNED"
+                ? "Correction Required"
+                : "Under Review";
+            const variant = versionDecision === "APPROVED"
+              ? ("onSchedule" as const)
+              : versionDecision === "RETURNED"
+                ? ("overdue" as const)
+                : ("brandSoft" as const);
+            return (
+              <div
+                key={version.id}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border-strong bg-black/2 px-4 py-3"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">Version {version.version}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Submitted {formatDate(version.submittedAt)}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant={variant}>{label}</Badge>
+                  <a
+                    href={submissionDownloadUrl(version.id)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-1.5 text-xs text-brand-700 hover:underline"
+                  >
+                    <Download className="size-3.5" /> Download
+                  </a>
+                </div>
+              </div>
+            );
+          })}
+        </CardContent>
+      </Card>
     </div>
   );
 }
