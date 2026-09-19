@@ -5,8 +5,11 @@ import bcrypt from "bcryptjs";
 import { recomputeAllRisk } from "../lib/risk-engine";
 import { getSupabaseAdmin } from "../lib/supabase-admin";
 import { SUBMISSIONS_BUCKET } from "../lib/storage";
+import { resolveDatabaseUrl } from "../lib/prisma";
 
-const prisma = new PrismaClient();
+// Same URL repair as the app: seeding through the transaction pooler otherwise
+// fails partway with `prepared statement "s0" already exists`.
+const prisma = new PrismaClient({ datasourceUrl: resolveDatabaseUrl(process.env.DATABASE_URL) });
 
 /** The stored object every seeded submission points at. */
 const SEED_PLACEHOLDER = "seed-placeholder.pdf";
