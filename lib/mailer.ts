@@ -1,62 +1,60 @@
-import nodemailer, { type Transporter } from "nodemailer";
-
 /**
- * Outbound email.
+ * Outbound email, over HTTP.
  *
- * Two transports, chosen by whichever is configured:
+ * Two providers, chosen by whichever key is present:
  *
- * - **SMTP** (Brevo, or any SMTP host) when SMTP_HOST is set. Preferred, because
- *   Brevo delivers to any recipient once a single sender address is verified.
- * - **Resend** otherwise, called over plain `fetch`. Kept as a fallback, but it
- *   only accepts the account owner's own address as a recipient until a domain
- *   is verified, so it cannot invite real students on its own.
+ * - **Brevo** (BREVO_API_KEY). Preferred: it verifies a single sender address
+ *   rather than a whole domain, so it can deliver to real students.
+ * - **Resend** (RESEND_API_KEY) as a fallback. Without a verified domain it only
+ *   accepts the account owner's own address as a recipient, so it cannot invite
+ *   students on its own.
+ *
+ * Both are called with plain `fetch` and no SDK. That is deliberate: the mail
+ * library that used to sit here (nodemailer) broke the production build by
+ * conflicting with next-auth's peer range, and papering over that needed an npm
+ * override. An HTTP call has no dependency to conflict with.
  *
  * On sender addresses: mail is always sent from the one verified address in
  * MAIL_FROM, never as the supervisor's own. Sending as an arbitrary address
- * fails SPF, DKIM and DMARC, so those messages are dropped or land in spam —
- * worse than not sending, because nobody finds out. What the student sees
- * instead is the supervisor's *name* on the message and their address in
- * Reply-To, so replies reach the supervisor directly.
+ * fails SPF, DKIM and DMARC, so those messages are dropped or land in spam.
+ * What the student sees instead is the supervisor's *name* on the message and
+ * their address in Reply-To, so replies reach the supervisor directly.
  *
- * Every helper here reports failure rather than throwing: an invitation that
- * could not be emailed is still a valid invitation, because the link can be
- * copied by hand.
+ * A caveat worth knowing: both providers accept a message and validate the
+ * sender afterwards, so a success here means "accepted for delivery", not
+ * "delivered". If MAIL_FROM is not a verified sender the message is dropped
+ * later and only the provider's dashboard shows it. Keeping MAIL_FROM verified
+ * is a deployment concern, not something this code can check per send.
+ *
+ * Every helper reports failure rather than throwing: an invitation that could
+ * not be emailed is still a valid invitation, because the link can be copied.
  */
 
+const BREVO_ENDPOINT = "https://api.brevo.com/v3/smtp/email";
 const RESEND_ENDPOINT = "https://api.resend.com/emails";
 
 export type MailResult = { ok: true } | { ok: false; error: string };
 
-let transporter: Transporter | undefined;
-
-function smtpConfigured(): boolean {
-  return Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASSWORD);
-}
-
-/** True when any transport is configured, so callers can degrade gracefully. */
+/** True when a provider is configured, so callers can degrade gracefully. */
 export function isMailConfigured(): boolean {
-  return smtpConfigured() || Boolean(process.env.RESEND_API_KEY);
+  return Boolean(process.env.BREVO_API_KEY || process.env.RESEND_API_KEY);
 }
 
-/** The address every message is sent from. */
+/** The address every message is sent from. Must be verified with the provider. */
 export function mailFromAddress(): string {
-  return process.env.MAIL_FROM ?? process.env.SMTP_USER ?? "onboarding@resend.dev";
+  return process.env.MAIL_FROM ?? "onboarding@resend.dev";
 }
 
-function getTransporter(): Transporter {
-  if (transporter) return transporter;
-
-  const port = Number(process.env.SMTP_PORT ?? 587);
-
-  transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port,
-    // 465 is implicit TLS; 587 upgrades with STARTTLS.
-    secure: port === 465,
-    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD },
-  });
-
-  return transporter;
+/** Providers explain refusals in the body; that text is what a lecturer needs. */
+async function describeFailure(response: Response, fallback: string): Promise<string> {
+  const detail = await response.text();
+  try {
+    const parsed = JSON.parse(detail) as { message?: string };
+    if (parsed.message) return parsed.message;
+  } catch {
+    // Non-JSON body: the caller's generic message is the best available.
+  }
+  return fallback;
 }
 
 export async function sendMail({
@@ -76,41 +74,52 @@ export async function sendMail({
   replyTo?: string;
 }): Promise<MailResult> {
   const address = mailFromAddress();
-  // Quoted so a name containing a comma or period doesn't split the header.
-  const from = fromName ? `"${fromName.replace(/"/g, "")}" <${address}>` : address;
+  const brevoKey = process.env.BREVO_API_KEY;
 
-  if (smtpConfigured()) {
+  if (brevoKey) {
     try {
-      await getTransporter().sendMail({ from, to, subject, text, html, replyTo });
+      const response = await fetch(BREVO_ENDPOINT, {
+        method: "POST",
+        headers: { "api-key": brevoKey, "content-type": "application/json", accept: "application/json" },
+        body: JSON.stringify({
+          sender: { email: address, ...(fromName ? { name: fromName } : {}) },
+          to: [{ email: to }],
+          subject,
+          textContent: text,
+          htmlContent: html,
+          ...(replyTo ? { replyTo: { email: replyTo } } : {}),
+        }),
+      });
+
+      if (!response.ok) {
+        const message = await describeFailure(response, `Brevo rejected the message (${response.status}).`);
+        console.error("[sendMail:brevo]", response.status, message);
+        return { ok: false, error: message };
+      }
+
       return { ok: true };
     } catch (err) {
-      console.error("[sendMail:smtp]", err);
+      console.error("[sendMail:brevo]", err);
       return { ok: false, error: err instanceof Error ? err.message : "Could not send the email." };
     }
   }
 
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) return { ok: false, error: "Email is not configured on this deployment." };
+  const resendKey = process.env.RESEND_API_KEY;
+  if (!resendKey) return { ok: false, error: "Email is not configured on this deployment." };
+
+  // Quoted so a name containing a comma or period doesn't split the header.
+  const from = fromName ? `"${fromName.replace(/"/g, "")}" <${address}>` : address;
 
   try {
     const response = await fetch(RESEND_ENDPOINT, {
       method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({ from, to: [to], subject, text, html, ...(replyTo ? { reply_to: replyTo } : {}) }),
     });
 
     if (!response.ok) {
-      // Resend explains refusals in the body — an unverified domain, a bad key —
-      // and that explanation is what the lecturer needs to see, not a status code.
-      const detail = await response.text();
-      let message = `The mail provider rejected the message (${response.status}).`;
-      try {
-        const parsed = JSON.parse(detail) as { message?: string };
-        if (parsed.message) message = parsed.message;
-      } catch {
-        // Non-JSON body: the generic message above is the best available.
-      }
-      console.error("[sendMail:resend]", response.status, detail);
+      const message = await describeFailure(response, `Resend rejected the message (${response.status}).`);
+      console.error("[sendMail:resend]", response.status, message);
       return { ok: false, error: message };
     }
 

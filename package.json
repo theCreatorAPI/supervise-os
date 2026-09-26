@@ -43,7 +43,6 @@
     "lucide-react": "^1.33.0",
     "next": "^16.3.5",
     "next-auth": "^5.0.0-beta.32",
-    "nodemailer": "^10.0.10",
     "prisma": "^6.19.3",
     "react": "19.2.8",
     "react-dom": "19.2.8",
@@ -59,7 +58,6 @@
     "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
-    "@types/nodemailer": "^7.0.2",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/three": "^0.185.4",
@@ -74,8 +72,7 @@
     "seed": "tsx --env-file=.env prisma/seed.ts"
   },
   "overrides": {
-    "deepmerge-ts": "^8.0.2",
-    "nodemailer": "$nodemailer"
+    "deepmerge-ts": "^8.0.2"
   },
   "allowScripts": {
     "@prisma/client@6.19.3": true,

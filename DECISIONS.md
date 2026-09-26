@@ -688,3 +688,29 @@ Last time a local install was taken as proof the build would work, and it was no
 held a resolution the build machine would not reproduce. This time the check was `npm ci` into an
 empty directory from package.json and package-lock.json alone, which is what Vercel actually does.
 602 packages, zero vulnerabilities, exit 0.
+
+
+## Phase 12 — 2026-09-26: Why the invitations never arrived
+
+The first Brevo sends reported success and delivered nothing. SMTP had accepted the message and Brevo
+rejected it afterwards, in its own words:
+
+> Sending has been rejected because the sender you used abdulrasaq283@gmail.com is not valid.
+> Validate your sender or authenticate your domain
+
+MAIL_FROM has to be an address verified with the provider, and only one was. Sending with the verified
+address delivered and was opened within seconds.
+
+This is the failure mode the mailer comments warn about, reached from the other side: a reported
+success that is only an acceptance. Neither transport catches it — Brevo's HTTP API returns 201 for an
+unverified sender exactly as SMTP does, which was checked rather than assumed. So it cannot be
+detected per send, and the defence is that MAIL_FROM is a deployment-time setting, documented as
+needing verification, not something a lecturer can get wrong per invitation.
+
+### nodemailer removed for good
+
+With an API key available, Brevo is called over HTTP like Resend. That drops the nodemailer dependency
+and, with it, the `"nodemailer": "$nodemailer"` override added to force its peer range past
+next-auth. The build no longer has a mail library to resolve at all, which is the only way that
+particular failure cannot come back. Verified again with `npm ci` into an empty directory: zero
+vulnerabilities, exit 0.
