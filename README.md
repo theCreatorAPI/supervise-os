@@ -1,7 +1,7 @@
 # Supervise OS
 
 A Student–Lecturer Project Supervision platform. Milestones, submissions, reviews, meetings,
-and automatic at-risk detection — one live view for students, lecturers, and department
+and automatic at-risk detection, one live view for students, lecturers, and department
 management.
 
 ## Quick start
