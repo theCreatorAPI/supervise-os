@@ -49,6 +49,35 @@ const FAQS: Faq[] = [
   },
 ];
 
+/** What management asks. Their questions are about oversight across the
+ *  department, not about running a single supervision relationship. */
+export const MANAGEMENT_FAQS: Faq[] = [
+  {
+    q: "What does Pending Approvals count?",
+    a: "Topic proposals a student has submitted that their supervisor has not yet approved or rejected. Clearing them is the supervisor's job; the dashboard surfaces them so nothing sits unnoticed.",
+  },
+  {
+    q: "How is Project Status worked out?",
+    a: "It is derived, not typed in. A project is Completed when every milestone is approved, Needs Attention when the risk engine has flagged it, On Track past 75% of milestones approved, and In Progress otherwise. The same rule runs on every screen, so the status never disagrees with itself.",
+  },
+  {
+    q: "Why does a submission show as Under Review when it has a comment on it?",
+    a: "A comment-only review is feedback, not a decision. Only Approve or Return closes a submission, so it stays Under Review until the supervisor makes that call.",
+  },
+  {
+    q: "What counts as a meeting needing attention?",
+    a: "A scheduled meeting whose date has passed with nobody marking it complete, or a completed meeting with no action items recorded — which leaves the student with nothing agreed.",
+  },
+  {
+    q: "Can I change a student's supervisor?",
+    a: "Not from these screens. Reassignment affects an active supervision relationship and its whole review history, so it is deliberately not a one-click action here.",
+  },
+  {
+    q: "Does the department figure cover every department?",
+    a: "Yes. Management sees every student, lecturer and project across all departments; use the filters on Projects to narrow to one.",
+  },
+];
+
 /** Defaults to the student set so existing callers keep working unchanged. */
 export function HelpFaq({ items = FAQS }: { items?: Faq[] }) {
   return (

@@ -90,11 +90,19 @@ model User {
   title          String?
   maxLoad        Int        @default(15)
   matricNumber   String?    @unique
+  /// The intake a student belongs to, e.g. "2025/2026". Set when their
+  /// supervisor invites them, and copied onto Project.session when their topic
+  /// is approved — so a student invited in one session never appears under
+  /// another, even before they have a project.
+  academicSession String?
   staffId        String?    @unique
   activationToken String?   @unique
   pendingSupervisorId String?
   notificationsEnabled Boolean   @default(true)
   meetingReminders     Boolean   @default(true)
+  /// Submission activity alerts, kept separate from general project activity so
+  /// the three switches on the settings screen control three different things.
+  submissionUpdates    Boolean   @default(true)
   failedLoginAttempts Int       @default(0)
   lockedUntil    DateTime?
   createdAt      DateTime   @default(now())
@@ -208,6 +216,10 @@ model TopicProposal {
   student   User           @relation(fields: [studentId], references: [id], onDelete: Cascade)
   title     String
   status    ProposalStatus @default(PENDING)
+  /// What the supervisor told the student when approving or requesting changes.
+  /// The approval screen shows it back to both sides after the decision, so the
+  /// reason a topic was sent back does not live only in a notification.
+  feedback  String?
   createdAt DateTime       @default(now())
   decidedAt DateTime?
 }

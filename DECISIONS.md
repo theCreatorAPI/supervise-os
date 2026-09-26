@@ -434,3 +434,221 @@ widening it. That also means **`SUPABASE_URL` must be present at build time**, s
 headers into the build output; if it is missing, uploads fail in the browser with no server-side
 trace. The uploader also uses `XMLHttpRequest` rather than `fetch`, because only XHR reports
 progress events, and a 25MB upload with no feedback is indistinguishable from a hung page.
+
+## Phase 6 — 2026-09-26: Management/admin screens
+
+The admin flow sheet specified seven primary screens plus Settings and Help. Four existed; the rest
+were built to match its structure, tables and wording. As with the supervisor flow, the reference's
+blue accents were not adopted — the palette stays the app's own, so these screens read as the same
+product rather than a second one bolted on.
+
+### The dashboard lost its charts
+
+The flow sheet's dashboard is a greeting, four figures, the approval queue and recent activity. The
+completion funnel and workload distribution charts that used to sit there moved to the Workload
+screen, which is now where department-level aggregates live. Nothing was deleted: the charts are the
+kind of thing management actually asks for, they just aren't what the dashboard is for.
+
+### Repeated furniture became components, not copies
+
+Five of these screens share the same pager, filter row, stat tiles, key/value summary and activity
+feed. Copying that markup five times is how two tables end up disagreeing about what a status means,
+so it lives in `data-pagination.tsx`, `filter-chips.tsx`, `stat-cards.tsx` and `detail-summary.tsx`.
+
+For the same reason, the submission status derivation moved out of the supervisor screen into
+`lib/submission-status.ts` and both screens now import it. A submission reading "Under Review" for a
+supervisor and "Correction Required" for management would be worse than either label alone — which
+is the argument `lib/project-status.ts` already makes for project status.
+
+### Filters are links and selects, never client state
+
+Every filter, sort and page on these screens is a URL. Chips are links; the Projects screen uses
+native `<select>` elements in a GET form because the flow sheet draws dropdowns there. Nothing needs
+client JavaScript, every view is shareable, and the server never ships a full table to the browser
+just so it can be filtered there.
+
+### Settings needed a third preference column
+
+The sheet's settings screen has three switches — project activity, submission updates, meeting
+updates — and the schema carried only two. `User.submissionUpdates` was added rather than pointing
+two switches at one column, which would have made one of them lie. The migration is additive with a
+default, so existing accounts keep alerts on.
+
+### Attention panels state only what is true
+
+The sheet fills its "Attention Required" and "Meetings Requiring Attention" panels with sample
+counts. These compute real ones and omit a line entirely when its count is zero, rather than
+rendering "0 submissions need attention". The submission overdue threshold is the risk engine's own
+21 days, so this screen and the At Risk screen can never disagree about the same submission.
+
+### Verification
+
+The smoke suite now signs in as management and walks all eleven screens plus the lecturer and project
+detail pages, asserting each heading against live seeded data. That catches a broken query or a
+missing relation as a failed test rather than a 500 in production.
+
+## Phase 7 — 2026-09-26: Lecturer flow cross-check
+
+The updated lecturer flow sheet was compared screen by screen against what was built in Phase 4.
+Most of it already matched: the student roster's filter chips and sorting, the project detail header
+and its Project Status / Overall Progress / Current Chapter strip, the submissions table with its
+status and date filters, the review screen's Document Preview, Review & Comments, decision buttons
+and Submission History, the meetings table, the meeting record's notes and action items, and
+notifications, settings and help. Those were left alone.
+
+### Topic approval became its own flow
+
+The one real divergence: approvals. Phase 4 decided a topic inline on the dashboard with Approve and
+Reject buttons. The sheet routes them through a Project Approvals queue to a full Project Approval
+Review screen, and that is the better shape — approving a topic creates the student's project and its
+entire milestone set, which is not a decision to take from a list row without reading the proposal.
+
+The dashboard now shows the count and links out. `Reject` became `Request Changes`, which is what the
+action actually means: the student revises and resubmits rather than being turned away.
+
+### Feedback is stored, not just notified
+
+The sheet shows the supervisor's words back on the review screen after a decision — "Feedback sent to
+student" — so `TopicProposal.feedback` was added. Previously the reason a topic was returned existed
+only inside a notification message, which is the wrong place for it: notifications get read once and
+scrolled past, and the student coming back to the screen a week later saw nothing. Requesting changes
+now requires a comment; approving does not.
+
+### The approval queue had nothing to show
+
+Both this screen and management's "Projects Awaiting Approval" table were empty, because every seeded
+student already had a project and no proposal was left pending. The seed now creates three students
+whose topics are awaiting a decision — students with no project yet, which is exactly the state
+approving a proposal resolves.
+
+### The seed is not atomic
+
+Worth knowing: `db:seed` deletes everything before rebuilding, so a connection drop partway leaves the
+database half-populated — which happened twice while seeding over a flaky link, once stopping before
+reviews and once before the risk recompute. There is no transaction around it. Re-running fixes it,
+but it is not safe to run against anything whose data matters, which is the same reason it should
+never point at a real deployment.
+
+## Phase 8 — 2026-09-26: Academic sessions
+
+Supervisors carry students across intakes, and a 2025 cohort has nothing to do with a 2026 one. A
+session switcher in the header now scopes every supervision screen — dashboard, roster, submissions,
+meetings, approvals and at-risk — to a single intake.
+
+### The session belongs to the student, not only the project
+
+`Project.session` already existed but was never read or filtered on, and it could not carry this on
+its own: a student is invited long before they have a project, since the project is created when
+their topic is approved. An invited student with no project would have belonged to no session and
+disappeared from every screen including the approvals queue that is meant to show them.
+
+So `User.academicSession` records the intake at invite time, and approving a proposal copies it onto
+the project. The copy is deliberate rather than derived: a topic approved in October still belongs to
+the intake the student was invited into.
+
+The two columns are spelled differently — `User.academicSession` and `Project.session` — which is not
+ideal. Renaming `Project.session` was rejected because the already-deployed build selects that column,
+so the rename would have broken production between the migration running and the new build going out.
+
+### The selection is a mode, not a query parameter
+
+It lives in a cookie. It applies across six screens at once, and threading a parameter through every
+link between them leaves one stale link able to switch cohort mid-flow without the supervisor
+noticing. The trade-off is that a copied URL does not carry the session, which is the right way round:
+the switcher is visible in the header on every screen, so the current intake is never ambiguous.
+
+The fallback is the newest session the supervisor actually has people in, not the current calendar
+one — a lecturer whose students are all from last year should see their students rather than an empty
+screen for an intake nobody has been enrolled into yet.
+
+### One control, not two
+
+The switcher was first rendered twice behind responsive classes, one copy for each layout. The e2e
+test caught it as a strict-mode violation, which was the test doing its job: two copies put the same
+labelled control in the DOM twice, so every screen reader announced it twice however it looked. It is
+now rendered once and shared.
+
+### Management is deliberately not scoped
+
+Management screens still show every intake at once. Their job is the department as a whole, and a
+count of "Total Students" that silently excluded last year's cohort would be misleading rather than
+focused. If session filtering is wanted there, it belongs as a visible filter on the tables, not as a
+hidden mode.
+
+## Phase 9 — 2026-09-26: Emailing student invitations
+
+Adding a student now emails them the activation link, rather than leaving the supervisor to copy it
+out of a dialog. The copy control stays: some students are added while sitting in the room, and a
+send that quietly fails should never be the only path.
+
+### Mail is not sent as the supervisor's address
+
+The request was to send from the supervisor's own email. That is not deliverable. A mail server
+checks the sending domain against its SPF and DKIM records, and a message claiming to be from a
+university address but sent through someone else's account fails DMARC — it is dropped or filed as
+spam, silently, which is worse than not sending because nobody learns that it failed.
+
+What is sent instead carries the supervisor's **name** in the From header and their address in
+**Reply-To**, through the deployment's one authenticated SMTP account. The student sees their
+supervisor's name and replies land in their inbox. Only the envelope address — the part the receiving
+server actually verifies — belongs to the deployment.
+
+Invitations sent from a demo account reply to the project owner's address rather than the fake
+`@demo.io` one, since nobody reads those.
+
+Sending as real supervisor addresses would require each university domain to publish SPF/DKIM records
+delegating to this sender. That is a decision for the institution, not something the app can arrange.
+
+### A failed send never loses the invitation
+
+The email goes out after the student row and the audit entry are written, so a delivery failure
+cannot roll back an invitation that really happened. The action reports where it sent and why it
+didn't, and the dialog says so plainly — green when it was emailed, amber with the reason when it was
+not, and the link on screen either way. With no SMTP configured at all the feature simply skips,
+which is the correct behaviour for a local checkout.
+
+### nodemailer had to be pinned forward
+
+Installing nodemailer took the project from zero advisories to three high-severity ones, because npm
+resolved the version `@auth/core` expects. Pinning to `nodemailer@^10` — where the address-parsing and
+file-access issues are fixed — returned the audit to zero. NextAuth only needs nodemailer for its
+email provider, which this app does not use.
+
+## Phase 10 — 2026-09-26: Student flow cross-check, and demo logins
+
+The student flow sheet was compared screen by screen. The dashboard (progress, pending actions,
+upcoming meetings, the progress card with its milestone list, Next Action and Recent Activity), My
+Project (overview with academic session, milestones table, project documents), Submissions (status
+counts, recent submissions, action required), Submission Details in all three review states, Meetings,
+Notifications, Settings and Help all already matched and were left alone.
+
+### Project Approval was missing two of its three states
+
+The Approval Status card only rendered once a topic had been approved. A student waiting on a decision
+saw nothing, and a student asked for changes saw nothing — which is precisely when they most need the
+screen to say something. All three states now render, and the supervisor's feedback appears above the
+topic list, using the `TopicProposal.feedback` column added for the supervisor's approval screen.
+
+"Rejected" is also gone from the student's view. The supervisor screen calls that action "Request
+Changes"; showing the same decision as a rejection told the student something harsher than what their
+supervisor did.
+
+### The proposal cap could lock a student out
+
+The cap counted every topic a student had ever proposed, decided or not. Three rounds of requested
+changes and they could never propose again — the exact opposite of what requesting changes asks them
+to do. It now counts only topics awaiting a decision.
+
+The screen and the server action enforced this separately and had to be changed together: the page
+decides whether to show the form, the action decides whether to accept it, and had only one been
+fixed the form would have appeared and then refused the submission.
+
+### Demo logins
+
+Management was missing from the sign-in screen's demo buttons, and the sign-up screen listed no demo
+accounts at all. Both now read from `lib/demo-accounts.ts`, so the two screens cannot advertise
+different accounts. Sign-up lists them rather than making them clickable: signing in is the sign-in
+screen's job, and duplicating that flow would mean two implementations to keep working.
+
+Worth noting for the demo: the buttons land on the marketing page, not a dashboard, because the
+sign-in screen only learns the role after the credentials come back.

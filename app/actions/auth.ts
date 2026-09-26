@@ -4,6 +4,10 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
 import { prisma } from "@/lib/prisma";
+import { getSupervisorSessions } from "@/lib/academic-session";
+import { sendMail, isMailConfigured } from "@/lib/mailer";
+import { studentInviteEmail, replyToFor } from "@/lib/emails/student-invite";
+import { siteUrl } from "@/app/layout";
 import { auth } from "@/auth";
 import { logAudit } from "@/lib/audit";
 import { notify } from "@/lib/notify";
@@ -83,6 +87,14 @@ export type CreateStudentState = {
   error?: string;
   success?: boolean;
   activationUrl?: string;
+  /** Where the invitation was emailed, when it was. */
+  emailedTo?: string;
+  /**
+   * Why the email didn't go out. The student is still created and the link is
+   * still returned — a failed send is a delivery problem, not a reason to lose
+   * the invitation.
+   */
+  emailError?: string;
   /**
    * What the lecturer typed, echoed back so a rejected submit can refill the
    * form. React resets a form once its action runs, so without this every
@@ -117,6 +129,11 @@ export async function createStudent(_prev: CreateStudentState, formData: FormDat
 
     const lecturer = await prisma.user.findUnique({ where: { id: session.user.id } });
 
+    // The student joins the session the supervisor is currently working in, which
+    // is what the session switcher in the header is selecting. Invite someone
+    // while viewing 2025/2026 and they belong to that intake, not to today's.
+    const { selected } = await getSupervisorSessions(session.user.id);
+
     const activationToken = randomBytes(24).toString("hex");
 
     const student = await prisma.user.create({
@@ -128,6 +145,7 @@ export async function createStudent(_prev: CreateStudentState, formData: FormDat
         status: "PENDING_ACTIVATION",
         departmentId: lecturer?.departmentId,
         pendingSupervisorId: session.user.id,
+        academicSession: selected,
         activationToken,
       },
     });
@@ -140,11 +158,70 @@ export async function createStudent(_prev: CreateStudentState, formData: FormDat
 
     revalidatePath("/lecturer/students");
 
-    return { success: true, activationUrl: `/activate/${activationToken}?student=${encodeURIComponent(student.id)}` };
+    const activationPath = `/activate/${activationToken}?student=${encodeURIComponent(student.id)}`;
+
+    // Sent after the student exists and the audit entry is written, so a mail
+    // failure can never roll back an invitation that was really created.
+    const delivery = await emailInvitation({
+      studentName: name,
+      studentEmail: email.toLowerCase(),
+      supervisorName: session.user.name ?? "Your supervisor",
+      supervisorEmail: lecturer?.email ?? "",
+      activationPath,
+    });
+
+    return {
+      success: true,
+      activationUrl: activationPath,
+      emailedTo: delivery.ok ? email.toLowerCase() : undefined,
+      emailError: delivery.ok ? undefined : delivery.error,
+    };
   } catch (err) {
     console.error("[createStudent]", err);
     return { error: GENERIC_ERROR, values: submitted };
   }
+}
+
+/**
+ * Emails the activation link to the student.
+ *
+ * The message carries the supervisor's name and their address in Reply-To, but
+ * is sent through the deployment's own SMTP account — see lib/mailer.ts for why
+ * it cannot be sent as the supervisor's address directly. Invitations from demo
+ * accounts reply to the project owner instead, since @demo.io goes nowhere.
+ */
+async function emailInvitation({
+  studentName,
+  studentEmail,
+  supervisorName,
+  supervisorEmail,
+  activationPath,
+}: {
+  studentName: string;
+  studentEmail: string;
+  supervisorName: string;
+  supervisorEmail: string;
+  activationPath: string;
+}) {
+  if (!isMailConfigured()) {
+    return { ok: false as const, error: "Email isn't configured, so the link wasn't sent." };
+  }
+
+  const { subject, text, html } = studentInviteEmail({
+    studentName,
+    supervisorName,
+    // Absolute, because a relative path in an email is unclickable.
+    activationUrl: new URL(activationPath, siteUrl).toString(),
+  });
+
+  return sendMail({
+    to: studentEmail,
+    subject,
+    text,
+    html,
+    fromName: supervisorName,
+    replyTo: replyToFor(supervisorEmail),
+  });
 }
 
 const activateSchema = z.object({

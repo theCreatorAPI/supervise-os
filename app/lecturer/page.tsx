@@ -6,18 +6,21 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CountUp } from "@/components/ui/count-up";
 import { ProgressBar } from "@/components/ui/progress-bar";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { DecideProposalButtons } from "@/components/supervise/decide-proposal-buttons";
 import { summariseProject, statusBadgeVariant } from "@/lib/project-status";
-import { firstName, initials, timeAgo, greeting } from "@/lib/utils";
-import { Users, FolderKanban, Search, CalendarClock, ClipboardCheck } from "lucide-react";
+import { getSupervisorSessions } from "@/lib/academic-session";
+import { firstName, timeAgo, greeting } from "@/lib/utils";
+import { Users, FolderKanban, Search, CalendarClock } from "lucide-react";
 
 export default async function LecturerDashboard() {
   const session = await auth();
   if (!session?.user) return null;
 
+  // Everything on this screen is scoped to one intake, so a supervisor carrying
+  // students across several sessions sees one cohort at a time.
+  const { selected } = await getSupervisorSessions(session.user.id);
+
   const projects = await prisma.project.findMany({
-    where: { supervisorId: session.user.id },
+    where: { supervisorId: session.user.id, session: selected },
     include: {
       student: true,
       milestones: { include: { submissions: { orderBy: { submittedAt: "asc" } } } },
@@ -36,20 +39,22 @@ export default async function LecturerDashboard() {
   weekFromNow.setDate(weekFromNow.getDate() + 7);
   const upcomingMeetings = await prisma.meeting.count({
     where: {
-      project: { supervisorId: session.user.id },
+      project: { supervisorId: session.user.id, session: selected },
       completed: false,
       scheduledAt: { gte: new Date(), lte: weekFromNow },
     },
   });
 
   const pendingProposals = await prisma.topicProposal.findMany({
-    where: { status: "PENDING", student: { pendingSupervisorId: session.user.id } },
-    include: { student: true },
-    orderBy: { createdAt: "asc" },
+    where: {
+      status: "PENDING",
+      student: { pendingSupervisorId: session.user.id, academicSession: selected },
+    },
+    select: { id: true },
   });
 
   const recentActivity = await prisma.auditEvent.findMany({
-    where: { project: { supervisorId: session.user.id } },
+    where: { project: { supervisorId: session.user.id, session: selected } },
     orderBy: { createdAt: "desc" },
     take: 6,
   });
@@ -122,35 +127,27 @@ export default async function LecturerDashboard() {
         ))}
       </div>
 
-      {pendingProposals.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ClipboardCheck className="size-4 text-brand-700" /> Topic proposals awaiting your decision
-            </CardTitle>
-            <CardDescription>Approving one creates the student&apos;s project automatically.</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            {pendingProposals.map((p) => (
-              <div
-                key={p.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border-strong bg-black/2 p-3"
-              >
-                <div className="flex items-center gap-3">
-                  <Avatar>
-                    <AvatarFallback>{initials(p.student.name)}</AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <p className="text-sm font-medium">{p.student.name}</p>
-                    <p className="text-xs text-muted-foreground">{p.title}</p>
-                  </div>
-                </div>
-                <DecideProposalButtons proposalId={p.id} />
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
+      <Card>
+        <CardHeader>
+          <CardTitle>Project Approvals</CardTitle>
+          <CardDescription>Research topics awaiting your review</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border-strong bg-black/2 px-4 py-3">
+            <p className="text-sm">
+              {pendingProposals.length === 0
+                ? "No topics are waiting on you right now"
+                : `${pendingProposals.length} project${pendingProposals.length === 1 ? "" : "s"} awaiting your review`}
+            </p>
+            <Link
+              href="/lecturer/approvals"
+              className="-my-1 shrink-0 py-1.5 text-sm font-medium text-brand-700 hover:underline"
+            >
+              View approvals →
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

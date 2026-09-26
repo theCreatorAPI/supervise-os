@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScheduleMeetingDialog } from "@/components/supervise/schedule-meeting-dialog";
+import { getSupervisorSessions } from "@/lib/academic-session";
 import { formatDateTime } from "@/lib/utils";
 
 /** Upcoming first, because those are the ones a supervisor is preparing for. */
@@ -17,14 +18,16 @@ export default async function LecturerMeetingsPage() {
   const session = await auth();
   if (!session?.user) return null;
 
+  const { selected } = await getSupervisorSessions(session.user.id);
+
   const meetings = await prisma.meeting.findMany({
-    where: { project: { supervisorId: session.user.id } },
+    where: { project: { supervisorId: session.user.id, session: selected } },
     include: { project: { include: { student: true } } },
     orderBy: { scheduledAt: "asc" },
   });
 
   const projects = await prisma.project.findMany({
-    where: { supervisorId: session.user.id },
+    where: { supervisorId: session.user.id, session: selected },
     include: { student: true },
     orderBy: { createdAt: "desc" },
   });

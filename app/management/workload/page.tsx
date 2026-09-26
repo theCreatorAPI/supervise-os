@@ -2,6 +2,9 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ProgressRing } from "@/components/ui/progress-ring";
+import { FunnelChart } from "@/components/supervise/charts/funnel-chart";
+import { WorkloadChart } from "@/components/supervise/charts/workload-chart";
+import { MILESTONE_TEMPLATE } from "@/lib/milestones";
 import { cn } from "@/lib/utils";
 
 const SORTS: Record<string, (a: Row, b: Row) => number> = {
@@ -34,14 +37,24 @@ export default async function ManagementWorkloadPage({
   searchParams: Promise<{ sort?: string }>;
 }) {
   const { sort } = await searchParams;
-  const lecturers = await prisma.user.findMany({
-    where: { role: "LECTURER" },
-    include: {
-      projectsSupervised: {
-        include: { milestones: { select: { status: true } } },
+  const [lecturers, milestones] = await Promise.all([
+    prisma.user.findMany({
+      where: { role: "LECTURER" },
+      include: {
+        projectsSupervised: {
+          include: { milestones: { select: { status: true } } },
+        },
       },
-    },
-  });
+    }),
+    prisma.milestone.findMany({ select: { order: true, status: true } }),
+  ]);
+
+  // The department-level charts live here rather than on the dashboard, which
+  // follows the admin flow sheet and keeps the aggregate views in one place.
+  const funnelData = MILESTONE_TEMPLATE.map((name, i) => ({
+    name,
+    count: milestones.filter((m) => m.order === i + 1 && m.status === "APPROVED").length,
+  }));
 
   const rows: Row[] = lecturers.map((l) => ({
     id: l.id,
@@ -56,6 +69,10 @@ export default async function ManagementWorkloadPage({
 
   const sortFn = SORTS[sort ?? "students"] ?? SORTS.students;
   rows.sort(sortFn);
+
+  const workloadData = rows
+    .map((r) => ({ name: r.name.replace("Dr. ", ""), students: r.students, capacity: r.capacity }))
+    .sort((a, b) => b.students - a.students);
 
   const columns = [
     { key: "students", label: "Students" },
@@ -92,6 +109,26 @@ export default async function ManagementWorkloadPage({
             </Card>
           );
         })}
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Workload distribution</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <WorkloadChart data={workloadData} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Completion funnel</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <FunnelChart data={funnelData} />
+          </CardContent>
+        </Card>
       </div>
 
       <Card>

@@ -5,18 +5,20 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowRight, Loader2, GraduationCap, UserCog } from "lucide-react";
+import { ArrowRight, Loader2, GraduationCap, UserCog, Building2 } from "lucide-react";
 import { AuthLayout } from "@/components/supervise/auth-layout";
+import { DEMO_ACCOUNTS, DEMO_PASSWORD } from "@/lib/demo-accounts";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 
-/** Seeded demo logins, also listed in DEMO_ACCOUNTS.md. */
-const DEMO_ACCOUNTS = [
-  { label: "Continue as a student", email: "student1@demo.io", icon: GraduationCap },
-  { label: "Continue as a lecturer", email: "lecturer1@demo.io", icon: UserCog },
-];
-const DEMO_PASSWORD = "password123";
+/** Icons live here rather than in the shared list, which the server-rendered
+ *  sign-up screen also reads and which should stay free of components. */
+const DEMO_ICONS = {
+  STUDENT: GraduationCap,
+  LECTURER: UserCog,
+  MANAGEMENT: Building2,
+} as const;
 
 function SignInForm() {
   const router = useRouter();
@@ -110,7 +112,9 @@ function SignInForm() {
         <span className="h-px flex-1 bg-border-strong" />
       </div>
 
-      {DEMO_ACCOUNTS.map((account) => (
+      {DEMO_ACCOUNTS.map((account) => {
+        const Icon = DEMO_ICONS[account.role];
+        return (
         <Button
           key={account.email}
           type="button"
@@ -125,9 +129,10 @@ function SignInForm() {
           className="w-full rounded-xl border-transparent bg-black/[0.06] shadow-none hover:bg-black/[0.09]"
         >
           {account.label}
-          <account.icon className="size-4" />
+          <Icon className="size-4" />
         </Button>
-      ))}
+        );
+      })}
     </motion.form>
   );
 }

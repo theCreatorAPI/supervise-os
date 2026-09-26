@@ -19,10 +19,14 @@ import {
 export function AppShell({
   role,
   userName,
+  toolbar,
   children,
 }: {
   role: "STUDENT" | "LECTURER" | "MANAGEMENT";
   userName: string;
+  /** Rendered in the header. Used for the academic session switcher, which has
+   *  to stay reachable from every screen rather than living on one of them. */
+  toolbar?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -109,7 +113,11 @@ export function AppShell({
             <span className="font-display text-sm font-bold">Supervise OS</span>
           </div>
           <div className="hidden md:block" />
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            {/* Rendered once and shared by both layouts. Two copies behind
+                responsive classes would put the same control in the DOM twice,
+                which duplicates it for screen readers however it looks. */}
+            {toolbar}
             <NotificationBell />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

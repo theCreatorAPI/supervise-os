@@ -61,8 +61,20 @@ export function AddStudentDialog() {
 
         {activationLink ? (
           <div className="flex flex-col gap-4">
-            <p className="rounded-lg border border-success-500/30 bg-success-500/10 px-3 py-2 text-xs text-success-700">
-              Student created. Share this activation link with them.
+            {state.emailedTo ? (
+              <p className="rounded-lg border border-success-500/30 bg-success-500/10 px-3 py-2 text-xs text-success-700">
+                Student created and the activation link was emailed to {state.emailedTo}.
+              </p>
+            ) : (
+              <p className="rounded-lg border border-warn-500/30 bg-warn-500/10 px-3 py-2 text-xs text-warn-700">
+                Student created, but the email didn&apos;t go out
+                {state.emailError ? `: ${state.emailError}` : "."} Send them this link yourself.
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              {state.emailedTo
+                ? "You can also copy the link and send it another way."
+                : "Copy the link and send it to them directly."}
             </p>
             <div className="flex items-center gap-2">
               <Input readOnly value={activationLink} className="text-xs" />

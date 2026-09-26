@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { getSupervisorSessions } from "@/lib/academic-session";
+import { submissionStatus } from "@/lib/submission-status";
 import { formatDate, cn } from "@/lib/utils";
 
 /**
@@ -39,24 +41,6 @@ function buildHref(params: Record<string, string | undefined>, changes: Record<s
   return qs ? `/lecturer/submissions?${qs}` : "/lecturer/submissions";
 }
 
-/**
- * A submission's status is derived, not stored: the newest review on it decides,
- * and an unreviewed submission is simply still waiting.
- */
-function statusOf(reviews: { decision: string; createdAt: Date }[]) {
-  if (reviews.length === 0) {
-    return { key: "under-review", label: "Under Review", variant: "brandSoft" as const };
-  }
-  const latest = [...reviews].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
-  if (latest.decision === "APPROVED") {
-    return { key: "approved", label: "Approved", variant: "onSchedule" as const };
-  }
-  if (latest.decision === "RETURNED") {
-    return { key: "correction", label: "Correction Required", variant: "overdue" as const };
-  }
-  return { key: "under-review", label: "Under Review", variant: "brandSoft" as const };
-}
-
 export default async function LecturerSubmissionsPage({
   searchParams,
 }: {
@@ -67,8 +51,10 @@ export default async function LecturerSubmissionsPage({
   const params = await searchParams;
   const { status, q, range } = params;
 
+  const { selected } = await getSupervisorSessions(session.user.id);
+
   const submissions = await prisma.submission.findMany({
-    where: { milestone: { project: { supervisorId: session.user.id } } },
+    where: { milestone: { project: { supervisorId: session.user.id, session: selected } } },
     include: {
       reviews: true,
       milestone: { include: { project: { include: { student: true } } } },
@@ -84,7 +70,7 @@ export default async function LecturerSubmissionsPage({
     milestone: s.milestone.name,
     version: s.version,
     submittedAt: s.submittedAt,
-    status: statusOf(s.reviews),
+    status: submissionStatus(s.reviews),
   }));
 
   let filtered = status && status !== "all" ? rows.filter((r) => r.status.key === status) : rows;

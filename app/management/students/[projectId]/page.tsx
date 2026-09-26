@@ -1,15 +1,15 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { RiskBadge } from "@/components/supervise/risk-badge";
-import { MilestoneStatusBadge } from "@/components/supervise/milestone-status-badge";
-import { ProgressConstellation } from "@/components/supervise/progress-constellation";
-import { initials, formatDate, formatDateTime } from "@/lib/utils";
-import { Mail } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { ProgressBar } from "@/components/ui/progress-bar";
+import { DetailSummary, ActivityFeed } from "@/components/supervise/detail-summary";
+import { summariseProject, statusBadgeVariant } from "@/lib/project-status";
+import { formatDate } from "@/lib/utils";
 
-export default async function ManagementProjectDetailPage({
+export default async function ManagementStudentDetailPage({
   params,
 }: {
   params: Promise<{ projectId: string }>;
@@ -19,99 +19,89 @@ export default async function ManagementProjectDetailPage({
   const project = await prisma.project.findUnique({
     where: { id: projectId },
     include: {
-      student: true,
+      student: { include: { department: true } },
       supervisor: true,
-      milestones: {
-        orderBy: { order: "asc" },
-        include: { submissions: { orderBy: { version: "desc" }, take: 1 } },
-      },
-      meetings: { orderBy: { scheduledAt: "desc" }, take: 5 },
+      milestones: { orderBy: { order: "asc" }, include: { submissions: { orderBy: { version: "desc" }, take: 1 } } },
+      auditEvents: { orderBy: { createdAt: "desc" }, take: 6 },
     },
   });
 
   if (!project) notFound();
-  const reasons: string[] = JSON.parse(project.riskReasons || "[]");
+
+  const summary = summariseProject(project, project.milestones);
+
+  const lastSubmission = project.milestones
+    .flatMap((m) => m.submissions)
+    .sort((a, b) => b.submittedAt.getTime() - a.submittedAt.getTime())[0];
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-start gap-4">
-        <Avatar className="size-12">
-          <AvatarFallback className="text-sm">{initials(project.student.name)}</AvatarFallback>
-        </Avatar>
-        <div>
-          <div className="mb-1.5 flex items-center gap-2">
-            <RiskBadge level={project.riskLevel} />
-            {project.status !== "ACTIVE" && <Badge variant="outline">{project.status}</Badge>}
-          </div>
-          <h1 className="font-display text-2xl font-bold md:text-3xl">{project.student.name}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{project.title}</p>
-          <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Mail className="size-3" /> {project.student.email} · supervised by {project.supervisor.name}
-          </p>
-        </div>
+      <div>
+        <h1 className="font-display text-2xl font-bold md:text-3xl">Student Details</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          View student information and project supervision details.
+        </p>
       </div>
 
-      {reasons.length > 0 && (
-        <Card className={project.riskLevel === "CRITICAL" ? "glow-critical" : "glow-warn"}>
-          <CardContent className="flex flex-col gap-2 py-4">
-            <p className="text-sm font-semibold text-warn-700">Risk factors</p>
-            <ul className="flex flex-col gap-1 text-sm text-muted-foreground">
-              {reasons.map((r) => (
-                <li key={r} className="flex items-start gap-2">
-                  <span className="mt-1.5 size-1 shrink-0 rounded-full bg-warn-700" /> {r}
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      )}
+      <DetailSummary
+        fields={[
+          { label: "Student", value: project.student.name },
+          { label: "Department", value: project.student.department?.name ?? "—" },
+          { label: "Supervisor", value: project.supervisor.name },
+          {
+            label: "Project Status",
+            value: <Badge variant={statusBadgeVariant(summary.status.key)}>{summary.status.label}</Badge>,
+          },
+        ]}
+      />
 
       <Card>
         <CardHeader>
-          <CardTitle>Progress Constellation</CardTitle>
+          <CardTitle>Project Information</CardTitle>
+          <CardDescription>Overview of the student&apos;s current project.</CardDescription>
         </CardHeader>
-        <CardContent>
-          <ProgressConstellation milestones={project.milestones} />
+        <CardContent className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+          <div className="min-w-0">
+            <p className="text-xs text-muted-foreground">Project</p>
+            <p className="mt-1 text-sm font-medium wrap-break-word">{project.title}</p>
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs text-muted-foreground">Current Milestone</p>
+            <p className="mt-1 text-sm font-medium">{summary.currentMilestone?.name ?? "—"}</p>
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs text-muted-foreground">Progress</p>
+            <p className="mt-1 text-sm font-medium">{summary.progress}%</p>
+            <ProgressBar value={summary.progress} className="mt-2" />
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              {summary.approvedCount} of {summary.totalCount} milestones approved
+            </p>
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs text-muted-foreground">Last Submission</p>
+            <p className="mt-1 text-sm font-medium">
+              {lastSubmission ? formatDate(lastSubmission.submittedAt) : "None yet"}
+            </p>
+          </div>
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Milestones</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          {project.milestones.map((m) => (
-            <div key={m.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border-strong bg-black/[0.02] p-4">
-              <div className="flex items-center gap-2">
-                <Badge variant="outline">M{m.order}</Badge>
-                <span className="text-sm font-semibold">{m.name}</span>
-                <MilestoneStatusBadge status={m.status} />
-              </div>
-              <span className="text-xs text-muted-foreground">
-                {m.dueDate ? `Due ${formatDate(m.dueDate)}` : "No due date"}
-              </span>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+      <ActivityFeed
+        title="Supervision Activity"
+        description="Recent activity related to the student's project."
+        emptyLabel="No recorded activity for this project yet."
+        items={project.auditEvents.map((e) => ({
+          id: e.id,
+          text: e.description,
+          when: formatDate(e.createdAt),
+        }))}
+      />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent meetings</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-2">
-          {project.meetings.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No meetings scheduled yet.</p>
-          ) : (
-            project.meetings.map((m) => (
-              <div key={m.id} className="flex items-center justify-between rounded-lg bg-black/[0.02] px-3 py-2 text-sm">
-                <span>{m.title}</span>
-                <span className="text-xs text-muted-foreground">{formatDateTime(m.scheduledAt)}</span>
-              </div>
-            ))
-          )}
-        </CardContent>
-      </Card>
+      <div>
+        <Button variant="secondary" asChild>
+          <Link href={`/management/projects/${project.id}`}>View full project</Link>
+        </Button>
+      </div>
     </div>
   );
 }

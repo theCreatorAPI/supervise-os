@@ -8,7 +8,19 @@ import { DeleteProposalButton } from "@/components/supervise/delete-proposal-but
 import { formatDate } from "@/lib/utils";
 import { ArrowRight } from "lucide-react";
 
-const MAX_PROPOSALS = 3;
+/** How many topics may be awaiting a decision at once. */
+const MAX_PENDING_PROPOSALS = 3;
+
+/**
+ * "Rejected" is the database's word; the supervisor screen calls the same action
+ * "Request Changes", and so does the student flow. A student whose topic needs a
+ * rewrite has not been rejected — they have been asked for changes.
+ */
+const PROPOSAL_STATUS_LABEL = {
+  PENDING: "Pending",
+  APPROVED: "Approved",
+  REJECTED: "Changes Requested",
+} as const;
 
 export default async function ProjectApprovalPage() {
   const session = await auth();
@@ -23,7 +35,18 @@ export default async function ProjectApprovalPage() {
   ]);
 
   const approved = proposals.find((p) => p.status === "APPROVED");
-  const canPropose = !project && proposals.length < MAX_PROPOSALS && !approved;
+
+  // Only undecided topics count toward the cap. Counting closed ones would mean
+  // a student asked for changes three times could never propose again — which is
+  // the opposite of what requesting changes is asking them to do.
+  const pendingCount = proposals.filter((p) => p.status === "PENDING").length;
+  const canPropose = !project && !approved && pendingCount < MAX_PENDING_PROPOSALS;
+
+  // The most recent decision, which is what the status card and feedback reflect.
+  const lastDecided = proposals.find((p) => p.status !== "PENDING");
+  const changesRequested = !approved && !project && lastDecided?.status === "REJECTED" ? lastDecided : null;
+
+  const approvalState = approved || project ? "APPROVED" : changesRequested ? "REJECTED" : pendingCount > 0 ? "PENDING" : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -42,6 +65,18 @@ export default async function ProjectApprovalPage() {
           </CardHeader>
           <CardContent>
             <ProposeTopicForm inProgress={proposals.length > 0} />
+          </CardContent>
+        </Card>
+      )}
+
+      {changesRequested?.feedback && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Supervisor Feedback</CardTitle>
+            <CardDescription>What your supervisor asked you to change before resubmitting.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">{changesRequested.feedback}</p>
           </CardContent>
         </Card>
       )}
@@ -76,7 +111,7 @@ export default async function ProjectApprovalPage() {
                         : "text-sm text-muted-foreground"
                     }
                   >
-                    {p.status.charAt(0) + p.status.slice(1).toLowerCase()}
+                    {PROPOSAL_STATUS_LABEL[p.status]}
                   </span>
                   {p.status === "PENDING" && <DeleteProposalButton proposalId={p.id} />}
                 </div>
@@ -86,27 +121,47 @@ export default async function ProjectApprovalPage() {
         </CardContent>
       </Card>
 
-      {(project || approved) && (
+      {approvalState && (
         <Card>
           <CardHeader>
             <CardTitle>Approval Status</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
-            <div>
-              <p className="text-sm font-semibold text-success-700">Approved</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Your project topic &ldquo;{project?.title ?? approved?.title}&rdquo; has been approved by your
-                supervisor.
-              </p>
-            </div>
-            <Button asChild className="w-fit">
-              <Link href="/student/project">
-                Go to My Project <ArrowRight className="size-4" />
-              </Link>
-            </Button>
+            {approvalState === "APPROVED" ? (
+              <>
+                <div>
+                  <p className="text-sm font-semibold text-success-700">Approved</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Your project topic &ldquo;{project?.title ?? approved?.title}&rdquo; has been approved by your
+                    supervisor.
+                  </p>
+                </div>
+                <Button asChild className="w-fit">
+                  <Link href="/student/project">
+                    Go to My Project <ArrowRight className="size-4" />
+                  </Link>
+                </Button>
+              </>
+            ) : approvalState === "REJECTED" ? (
+              <div>
+                <p className="text-sm font-semibold text-critical-700">Changes Requested</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Your supervisor has requested changes to your proposed project topic. Review the feedback, make the
+                  necessary changes, and resubmit for approval.
+                </p>
+              </div>
+            ) : (
+              <div>
+                <p className="text-sm font-semibold text-muted-foreground">Pending</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Your proposed project topic has been submitted and is awaiting review from your supervisor.
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
+
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { recomputeAllRisk } from "../lib/risk-engine";
 import { getSupabaseAdmin } from "../lib/supabase-admin";
+import { currentAcademicSession } from "../lib/academic-session";
 import { SUBMISSIONS_BUCKET } from "../lib/storage";
 import { resolveDatabaseUrl } from "../lib/prisma";
 
@@ -47,6 +48,13 @@ const MILESTONE_TEMPLATE = [
 ] as const;
 
 const DAY = 1000 * 60 * 60 * 24;
+
+/**
+ * Two past intakes plus the current one, so the session switcher has something
+ * real to switch between. The hero archetypes the demo leans on stay in the most
+ * recent completed intake; the rest are spread across both.
+ */
+const PAST_SESSIONS = ["2024/2025", "2025/2026"] as const;
 const daysAgo = (n: number) => new Date(Date.now() - n * DAY);
 const daysFromNow = (n: number) => new Date(Date.now() + n * DAY);
 
@@ -261,6 +269,9 @@ async function main() {
       const name = nextName();
       const email = `student${globalStudentCounter}@demo.io`;
       const matricNumber = `CSC/2022/${String(globalStudentCounter).padStart(3, "0")}`;
+      // Hero archetypes (the first four per lecturer) stay in the latest intake
+      // so the demo screens open on them; the rest fill the earlier one.
+      const studentSession = i < 4 ? PAST_SESSIONS[1] : PAST_SESSIONS[globalStudentCounter % 2];
       const student = await prisma.user.create({
         data: {
           name,
@@ -271,6 +282,7 @@ async function main() {
           departmentId: csDept.id,
           matricNumber,
           pendingSupervisorId: lecturer.id,
+          academicSession: studentSession,
         },
       });
 
@@ -282,7 +294,7 @@ async function main() {
           title,
           description: `An undergraduate final-year project on ${title.toLowerCase()}.`,
           programme: "B.Sc. Computer Science",
-          session: "2025/2026",
+          session: studentSession,
           studentId: student.id,
           supervisorId: lecturer.id,
           departmentId: csDept.id,
@@ -425,6 +437,42 @@ async function main() {
   }
 
   // Demonstrate the lecturer-creates-student activation flow with one pending account.
+  // Students whose topic is still awaiting a supervisor's decision. They have no
+  // project yet — that is exactly what approving the proposal creates — so they
+  // are what the lecturer's Project Approvals queue and management's "Projects
+  // Awaiting Approval" table are built to show.
+  console.log("Seeding topic proposals awaiting approval...");
+  const AWAITING_APPROVAL = [
+    { name: "Chisom Okafor", topic: "Effect of Social Media Use on Academic Performance", daysAgo: 8 },
+    { name: "Daniel Bello", topic: "Assessment of Water Quality in Selected Communities", daysAgo: 10 },
+    { name: "Aisha Ibrahim", topic: "Influence of Sleep Patterns on Undergraduate Academic Performance", daysAgo: 12 },
+  ];
+
+  for (const [i, entry] of AWAITING_APPROVAL.entries()) {
+    const student = await prisma.user.create({
+      data: {
+        name: entry.name,
+        email: `proposal${i + 1}@demo.io`,
+        passwordHash,
+        role: "STUDENT",
+        status: "ACTIVE",
+        departmentId: csDept.id,
+        matricNumber: `CSC/2022/9${10 + i}`,
+        pendingSupervisorId: lecturers[0].id,
+        academicSession: currentAcademicSession(),
+      },
+    });
+
+    await prisma.topicProposal.create({
+      data: {
+        studentId: student.id,
+        title: entry.topic,
+        status: "PENDING",
+        createdAt: daysAgo(entry.daysAgo),
+      },
+    });
+  }
+
   console.log("Seeding one pending-activation student...");
   await prisma.user.create({
     data: {
@@ -435,6 +483,7 @@ async function main() {
       departmentId: csDept.id,
       matricNumber: "CSC/2022/999",
       pendingSupervisorId: lecturers[0].id,
+      academicSession: currentAcademicSession(),
       activationToken: "demo-activation-token",
     },
   });

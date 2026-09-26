@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { AddStudentDialog } from "@/components/supervise/add-student-dialog";
+import { getSupervisorSessions } from "@/lib/academic-session";
 import { summariseProject, statusBadgeVariant } from "@/lib/project-status";
 import { cn } from "@/lib/utils";
 
@@ -45,8 +46,10 @@ export default async function LecturerStudentsPage({
   const params = await searchParams;
   const { status, q, sort } = params;
 
+  const { selected } = await getSupervisorSessions(session.user.id);
+
   const projects = await prisma.project.findMany({
-    where: { supervisorId: session.user.id },
+    where: { supervisorId: session.user.id, session: selected },
     include: { student: true, milestones: true },
     orderBy: { createdAt: "desc" },
   });

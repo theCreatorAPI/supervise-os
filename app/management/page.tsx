@@ -1,135 +1,152 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { CountUp } from "@/components/ui/count-up";
-import { FunnelChart } from "@/components/supervise/charts/funnel-chart";
-import { WorkloadChart } from "@/components/supervise/charts/workload-chart";
-import { MILESTONE_TEMPLATE } from "@/lib/milestones";
-import { Users, GraduationCap, AlertTriangle, Layers } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { StatCards } from "@/components/supervise/stat-cards";
+import { ActivityFeed } from "@/components/supervise/detail-summary";
+import { auth } from "@/auth";
+import { formatDate, greeting, firstName, timeAgo } from "@/lib/utils";
 
-const ACTION_LABELS: Record<string, string> = {
-  SUBMISSION: "submissions",
-  RESUBMISSION: "resubmissions",
-  REVIEW_APPROVED: "approvals",
-  REVIEW_RETURNED: "returns",
-  REVIEW_COMMENT_ONLY: "review comments",
-  MEETING_SCHEDULED: "meetings scheduled",
-  MEETING_COMPLETED: "meetings completed",
-  MILESTONE_DUE_DATE_CHANGED: "due date changes",
-  PROJECT_CREATED: "projects created",
-  STUDENT_CREATED: "students added",
-  STUDENT_ACTIVATED: "student activations",
-  LECTURER_REGISTERED: "lecturer registrations",
-};
-
+/**
+ * Department dashboard, following the admin flow sheet: a greeting, four
+ * headline figures, the approval queue, then recent activity.
+ *
+ * The aggregate charts that used to sit here now live on the Workload screen, so
+ * this page stays the overview the flow describes rather than a mixed dashboard.
+ */
 export default async function ManagementOverviewPage() {
-  // eslint-disable-next-line react-hooks/purity -- Date.now() in a Server Component's data fetch, not a render-path computation
-  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  const [students, lecturers, projects, milestones, recentEvents] = await Promise.all([
+  const session = await auth();
+
+  const [students, lecturers, activeProjects, proposals, recentEvents] = await Promise.all([
     prisma.user.count({ where: { role: "STUDENT" } }),
-    prisma.user.findMany({ where: { role: "LECTURER" }, include: { projectsSupervised: { select: { riskLevel: true, status: true } } } }),
-    prisma.project.findMany({ select: { riskLevel: true, status: true } }),
-    prisma.milestone.findMany({ select: { name: true, order: true, status: true } }),
+    prisma.user.count({ where: { role: "LECTURER" } }),
+    prisma.project.count({ where: { status: "ACTIVE" } }),
+    prisma.topicProposal.findMany({
+      where: { status: "PENDING" },
+      include: { student: { include: { department: true } } },
+      orderBy: { createdAt: "desc" },
+      take: 6,
+    }),
     prisma.auditEvent.findMany({
-      where: { createdAt: { gte: sevenDaysAgo } },
-      select: { action: true },
+      orderBy: { createdAt: "desc" },
+      take: 6,
+      include: { project: { select: { id: true } } },
     }),
   ]);
 
-  const activeProjects = projects.filter((p) => p.status === "ACTIVE");
-  const atRiskCount = activeProjects.filter((p) => p.riskLevel === "AT_RISK" || p.riskLevel === "CRITICAL").length;
-  const atRiskPct = activeProjects.length > 0 ? Math.round((atRiskCount / activeProjects.length) * 100) : 0;
+  const pendingApprovals = await prisma.topicProposal.count({ where: { status: "PENDING" } });
 
-  const funnelData = MILESTONE_TEMPLATE.map((name, i) => ({
-    name,
-    count: milestones.filter((m) => m.order === i + 1 && m.status === "APPROVED").length,
-  }));
-
-  const workloadData = lecturers
-    .map((l) => ({ name: l.name.replace("Dr. ", ""), students: l.projectsSupervised.length, capacity: l.maxLoad }))
-    .sort((a, b) => b.students - a.students);
-
-  const activityCounts = new Map<string, number>();
-  for (const e of recentEvents) {
-    activityCounts.set(e.action, (activityCounts.get(e.action) ?? 0) + 1);
-  }
-  const activitySummary = Array.from(activityCounts.entries())
-    .map(([action, count]) => ({ label: ACTION_LABELS[action] ?? action.toLowerCase().replace(/_/g, " "), count }))
-    .sort((a, b) => b.count - a.count);
+  // `pendingSupervisorId` is a plain column rather than a relation, so the
+  // supervisors behind the queue are resolved in one extra lookup.
+  const supervisorIds = [...new Set(proposals.map((p) => p.student.pendingSupervisorId).filter(Boolean))] as string[];
+  const supervisors = supervisorIds.length
+    ? await prisma.user.findMany({ where: { id: { in: supervisorIds } }, select: { id: true, name: true } })
+    : [];
+  const supervisorName = new Map(supervisors.map((s) => [s.id, s.name]));
 
   const stats = [
-    { label: "Total students", value: students, icon: GraduationCap, href: "/management/students" },
-    { label: "Total lecturers", value: lecturers.length, icon: Users, href: "/management/workload" },
-    { label: "Active projects", value: activeProjects.length, icon: Layers, href: "/management/students" },
-    { label: "At risk", value: atRiskPct, suffix: "%", icon: AlertTriangle, href: "/management/at-risk" },
+    { label: "Total Students", value: students, href: "/management/students" },
+    { label: "Total Lecturers", value: lecturers, href: "/management/lecturers" },
+    { label: "Active Projects", value: activeProjects, href: "/management/projects" },
+    {
+      label: "Pending Approvals",
+      value: pendingApprovals,
+      tone: pendingApprovals > 0 ? ("warn" as const) : ("default" as const),
+    },
   ];
 
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="font-display text-2xl font-bold md:text-3xl">Department overview</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Computer Science · supervision at a glance.</p>
+        <h1 className="font-display text-2xl font-bold md:text-3xl">
+          {greeting()}, {firstName(session?.user?.name)}
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Here&apos;s an overview of your department&apos;s project supervision activities.
+        </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {stats.map((s) => (
-          <Link key={s.label} href={s.href}>
-            <Card className="transition-transform hover:-translate-y-0.5">
-              <CardContent className="flex flex-col gap-2 pt-6">
-                <s.icon className="size-4 text-brand-700" />
-                <p className="font-display text-3xl font-bold">
-                  <CountUp value={s.value} />
-                  {s.suffix ?? ""}
-                </p>
-                <p className="text-xs text-muted-foreground">{s.label}</p>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Completion funnel</CardTitle>
-            <CardDescription>How many projects have approved each milestone.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <FunnelChart data={funnelData} />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Workload distribution</CardTitle>
-            <CardDescription>Students supervised vs. capacity, per lecturer.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <WorkloadChart data={workloadData} />
-          </CardContent>
-        </Card>
-      </div>
+      <StatCards stats={stats} />
 
       <Card>
         <CardHeader>
-          <CardTitle>Department activity, last 7 days</CardTitle>
-          <CardDescription>Aggregated across every lecturer and student — not per-record detail.</CardDescription>
+          <CardTitle>Projects Awaiting Approval</CardTitle>
+          <CardDescription>Shows projects currently awaiting supervisor approval.</CardDescription>
         </CardHeader>
-        <CardContent>
-          {activitySummary.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No recorded activity in the last 7 days.</p>
-          ) : (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-              {activitySummary.map((a) => (
-                <div key={a.label} className="rounded-lg border border-border-strong bg-background-elevated px-3 py-2.5">
-                  <p className="font-display text-xl font-bold">{a.count}</p>
-                  <p className="text-xs capitalize text-muted-foreground">{a.label}</p>
+
+        {proposals.length === 0 ? (
+          <CardContent>
+            <p className="py-2 text-sm text-muted-foreground">Nothing is waiting on approval right now.</p>
+          </CardContent>
+        ) : (
+          <>
+            {/* Desktop: the table from the flow sheet */}
+            <CardContent className="hidden overflow-x-auto p-0 md:block">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                    <th className="px-6 py-4 font-medium">Student</th>
+                    <th className="px-6 py-4 font-medium">Project</th>
+                    <th className="px-6 py-4 font-medium">Supervisor</th>
+                    <th className="px-6 py-4 font-medium">Submitted</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {proposals.map((p) => (
+                    <tr key={p.id} className="border-b border-border/60 last:border-0">
+                      <td className="px-6 py-4 font-medium">{p.student.name}</td>
+                      <td className="max-w-80 px-6 py-4 text-muted-foreground">{p.title}</td>
+                      <td className="whitespace-nowrap px-6 py-4 text-muted-foreground">
+                        {p.student.pendingSupervisorId
+                          ? supervisorName.get(p.student.pendingSupervisorId) ?? "Unassigned"
+                          : "Unassigned"}
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-4 text-muted-foreground">{formatDate(p.createdAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </CardContent>
+
+            {/* Mobile: the same rows stacked, since four columns can't shrink this far */}
+            <CardContent className="flex flex-col gap-3 md:hidden">
+              {proposals.map((p) => (
+                <div key={p.id} className="rounded-xl border border-border-strong bg-black/2 p-3">
+                  <p className="text-sm font-medium">{p.student.name}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{p.title}</p>
+                  <p className="mt-1.5 text-xs text-muted-foreground">
+                    {p.student.pendingSupervisorId
+                      ? supervisorName.get(p.student.pendingSupervisorId) ?? "Unassigned"
+                      : "Unassigned"}{" "}
+                    · {formatDate(p.createdAt)}
+                  </p>
                 </div>
               ))}
-            </div>
-          )}
-        </CardContent>
+            </CardContent>
+          </>
+        )}
       </Card>
+
+      <ActivityFeed
+        title="Recent Activity"
+        description="Latest supervision activity across the department."
+        emptyLabel="No recorded activity yet."
+        items={recentEvents.map((e) => ({
+          id: e.id,
+          text: e.description,
+          when: timeAgo(e.createdAt),
+          href: e.projectId ? `/management/projects/${e.projectId}` : undefined,
+        }))}
+      />
+
+      <div className="flex flex-wrap gap-2">
+        <Button variant="secondary" asChild>
+          <Link href="/management/at-risk">View at-risk projects</Link>
+        </Button>
+        <Button variant="secondary" asChild>
+          <Link href="/management/workload">View lecturer workload</Link>
+        </Button>
+      </div>
     </div>
   );
 }

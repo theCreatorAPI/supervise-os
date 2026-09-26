@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { getSupervisorSessions } from "@/lib/academic-session";
 import { Card, CardContent } from "@/components/ui/card";
 import { RiskBadge, riskGlowClass } from "@/components/supervise/risk-badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -27,8 +28,10 @@ export default async function LecturerAtRiskPage({
     | "CRITICAL"
   )[];
 
+  const { selected } = await getSupervisorSessions(session.user.id);
+
   const projects = await prisma.project.findMany({
-    where: { supervisorId: session.user.id, riskLevel: { in: levels } },
+    where: { supervisorId: session.user.id, session: selected, riskLevel: { in: levels } },
     include: { student: true },
     orderBy: [{ riskLevel: "asc" }, { createdAt: "desc" }],
   });

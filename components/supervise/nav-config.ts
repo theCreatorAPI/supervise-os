@@ -35,10 +35,17 @@ export const NAV: Record<"STUDENT" | "LECTURER" | "MANAGEMENT", NavItem[]> = {
     { label: "At Risk", href: "/lecturer/at-risk", icon: AlertTriangle },
   ],
   MANAGEMENT: [
-    { label: "Overview", href: "/management", icon: LayoutGrid },
-    { label: "Workload", href: "/management/workload", icon: Gauge },
-    { label: "At Risk", href: "/management/at-risk", icon: AlertTriangle },
+    { label: "Dashboard", href: "/management", icon: LayoutGrid },
     { label: "Students", href: "/management/students", icon: GraduationCap },
+    { label: "Lecturers", href: "/management/lecturers", icon: Users },
+    { label: "Projects", href: "/management/projects", icon: FolderKanban },
+    { label: "Submissions", href: "/management/submissions", icon: History },
+    { label: "Meetings", href: "/management/meetings", icon: CalendarClock },
+    { label: "Notifications", href: "/management/notifications", icon: Bell },
+    // Not on the admin flow sheet, but the risk engine and capacity view are
+    // already built and are the department-level answers management asks for.
+    { label: "At Risk", href: "/management/at-risk", icon: AlertTriangle },
+    { label: "Workload", href: "/management/workload", icon: Gauge },
   ],
 };
 
@@ -52,7 +59,10 @@ export const SECONDARY_NAV: Record<"STUDENT" | "LECTURER" | "MANAGEMENT", NavIte
     { label: "Settings", href: "/lecturer/settings", icon: Settings },
     { label: "Help & Support", href: "/lecturer/help", icon: HelpCircle },
   ],
-  MANAGEMENT: [],
+  MANAGEMENT: [
+    { label: "Settings", href: "/management/settings", icon: Settings },
+    { label: "Help & Support", href: "/management/help", icon: HelpCircle },
+  ],
 };
 
 /** Primary items shown in the mobile bottom tab bar (kept short so it doesn't overcrowd). */

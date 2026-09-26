@@ -9,7 +9,15 @@ import { logAudit } from "@/lib/audit";
 import { MILESTONE_TEMPLATE } from "@/lib/milestones";
 
 const GENERIC_ERROR = "Something went wrong. Please try again.";
-const MAX_PROPOSALS = 3;
+/**
+ * How many topics may be awaiting a decision at once.
+ *
+ * Counts only undecided ones: a student asked for changes three times would
+ * otherwise be permanently blocked from proposing again, which contradicts what
+ * requesting changes asks them to do. Must stay in step with the cap the
+ * approval screen enforces, or the form appears and then refuses the submit.
+ */
+const MAX_PENDING_PROPOSALS = 3;
 
 const proposeSchema = z.object({
   title: z.string().min(4, "Give your topic a real title."),
@@ -30,9 +38,11 @@ export async function proposeTopic(_prev: ProposeTopicState, formData: FormData)
     const existingProject = await prisma.project.findFirst({ where: { studentId: session.user.id } });
     if (existingProject) return { error: "You already have an approved project." };
 
-    const count = await prisma.topicProposal.count({ where: { studentId: session.user.id } });
-    if (count >= MAX_PROPOSALS) {
-      return { error: `You can only track up to ${MAX_PROPOSALS} proposed topics.` };
+    const pending = await prisma.topicProposal.count({
+      where: { studentId: session.user.id, status: "PENDING" },
+    });
+    if (pending >= MAX_PENDING_PROPOSALS) {
+      return { error: `You can only have ${MAX_PENDING_PROPOSALS} topics awaiting review at a time.` };
     }
 
     const student = await prisma.user.findUnique({ where: { id: session.user.id } });
@@ -76,7 +86,19 @@ export async function deleteProposal(proposalId: string) {
   }
 }
 
-export async function decideProposal(proposalId: string, decision: "APPROVED" | "REJECTED") {
+/**
+ * Approve a proposed topic, or send it back for changes.
+ *
+ * `feedback` is what the supervisor typed on the approval review screen. It is
+ * stored on the proposal rather than only pushed into a notification, so the
+ * reason a topic was returned is still on the screen when the student comes back
+ * to it later.
+ */
+export async function decideProposal(
+  proposalId: string,
+  decision: "APPROVED" | "REJECTED",
+  feedback?: string
+) {
   const session = await auth();
   if (!session?.user || session.user.role !== "LECTURER") {
     return { error: "Only lecturers can decide on a topic proposal." };
@@ -93,9 +115,11 @@ export async function decideProposal(proposalId: string, decision: "APPROVED" | 
     }
     if (proposal.status !== "PENDING") return { error: "This proposal was already decided." };
 
+    const trimmedFeedback = feedback?.trim() || null;
+
     await prisma.topicProposal.update({
       where: { id: proposalId },
-      data: { status: decision, decidedAt: new Date() },
+      data: { status: decision, decidedAt: new Date(), feedback: trimmedFeedback },
     });
 
     if (decision === "APPROVED") {
@@ -107,6 +131,10 @@ export async function decideProposal(proposalId: string, decision: "APPROVED" | 
             studentId: proposal.studentId,
             supervisorId: session.user.id,
             departmentId: proposal.student.departmentId,
+            // Carried from the student rather than read from today's date: the
+            // project belongs to the intake the student was invited into, even
+            // if their topic is approved in the following session.
+            session: proposal.student.academicSession,
             milestones: {
               create: MILESTONE_TEMPLATE.map((name, i) => ({ name, order: i + 1 })),
             },
@@ -125,14 +153,29 @@ export async function decideProposal(proposalId: string, decision: "APPROVED" | 
           description: `${session.user.name} approved "${proposal.title}" and created the project.`,
         });
       }
-      await notify(proposal.studentId, `Your topic "${proposal.title}" was approved. Head to My Project to get started.`, "/student/project");
+      await notify(
+        proposal.studentId,
+        trimmedFeedback
+          ? `Your topic "${proposal.title}" was approved: ${trimmedFeedback}`
+          : `Your topic "${proposal.title}" was approved. Head to My Project to get started.`,
+        "/student/project"
+      );
     } else {
-      await notify(proposal.studentId, `Your topic "${proposal.title}" was not approved. Propose another topic when you're ready.`, "/student/project-approval");
+      await notify(
+        proposal.studentId,
+        trimmedFeedback
+          ? `Changes requested on "${proposal.title}": ${trimmedFeedback}`
+          : `Changes were requested on "${proposal.title}". Propose a revised topic when you're ready.`,
+        "/student/project-approval"
+      );
     }
 
     revalidatePath("/student/project-approval");
     revalidatePath("/lecturer/students");
     revalidatePath("/lecturer");
+    revalidatePath("/lecturer/approvals");
+    revalidatePath(`/lecturer/approvals/${proposalId}`);
+    revalidatePath("/management");
     return { success: true };
   } catch (err) {
     console.error("[decideProposal]", err);
