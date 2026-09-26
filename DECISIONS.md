@@ -607,12 +607,21 @@ didn't, and the dialog says so plainly — green when it was emailed, amber with
 not, and the link on screen either way. With no SMTP configured at all the feature simply skips,
 which is the correct behaviour for a local checkout.
 
-### nodemailer had to be pinned forward
+### Sent through Resend's HTTP API, not SMTP
 
-Installing nodemailer took the project from zero advisories to three high-severity ones, because npm
-resolved the version `@auth/core` expects. Pinning to `nodemailer@^10` — where the address-parsing and
-file-access issues are fixed — returned the audit to zero. NextAuth only needs nodemailer for its
-email provider, which this app does not use.
+This started on nodemailer and had to move. Installing it took the project from zero advisories to
+three high-severity ones, so it was pinned to `nodemailer@^10` — which then failed the Vercel build
+outright, because next-auth declares a peer range of `^7.0.7 || ^8.0.5` and a clean `npm install`
+refuses the conflict. A local install had tolerated it; the build machine did not.
+
+Resend is now called over plain `fetch`. One POST needs no SDK, and an HTTP call has no dependency to
+conflict with — the mail library is gone rather than downgraded onto a vulnerable version.
+
+The constraint to remember: until a domain is verified at resend.com/domains, Resend only accepts the
+account owner's own address as a recipient and rejects everything else with a 403. Invitations to real
+students will fail until then. The refusal text Resend returns is surfaced verbatim in the add-student
+dialog rather than flattened into a generic error, because "verify a domain" is the actual fix and the
+lecturer cannot guess it from "something went wrong".
 
 ## Phase 10 — 2026-09-26: Student flow cross-check, and demo logins
 
