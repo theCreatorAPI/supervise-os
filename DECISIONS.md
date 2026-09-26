@@ -661,3 +661,30 @@ screen's job, and duplicating that flow would mean two implementations to keep w
 
 Worth noting for the demo: the buttons land on the marketing page, not a dashboard, because the
 sign-in screen only learns the role after the credentials come back.
+
+
+## Phase 11 — 2026-09-26: Brevo SMTP, and the peer conflict fixed properly
+
+Resend could not invite real students. Without a verified domain it accepts only the account owner's
+own address and rejects everything else with a 403, which is fine for a smoke test and useless for the
+feature. Brevo verifies a single sender address instead of a domain, so it delivers to anyone — tested
+to two different addresses, both accepted.
+
+SMTP is used when SMTP_HOST is set and Resend remains as a fallback, so email keeps working through a
+transport swap rather than going dark between deploys.
+
+### The peer conflict, fixed rather than dodged
+
+nodemailer is back, and this time the resolution is pinned. next-auth declares a peerOptional range of
+`^7.0.7 || ^8.0.5`; nodemailer 10 is the version where the address-parsing and file-access advisories
+are fixed. The gap is closed with an npm override of `"nodemailer": "$nodemailer"`, which forces the
+peer to resolve to whatever the root dependency is, rather than `legacy-peer-deps`, which would
+disable peer checking for every package in the tree and hide the next real conflict.
+
+The peer is optional and unused — next-auth needs nodemailer only for its email provider, and this app
+uses the credentials provider.
+
+Last time a local install was taken as proof the build would work, and it was not: the lockfile still
+held a resolution the build machine would not reproduce. This time the check was `npm ci` into an
+empty directory from package.json and package-lock.json alone, which is what Vercel actually does.
+602 packages, zero vulnerabilities, exit 0.
